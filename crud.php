@@ -458,6 +458,15 @@ div[id^="dropzone_"]:hover {
                         aria-controls="listado_' . $Tabla2 . '">';
                 echo Trd(31);
                 echo '</h4>';
+
+                $Tabla3 = 'products_images_sale';
+                echo '<h4 class="mb-4 btn-toggle-custom fs-5"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#listado_' . $Tabla3 . '"
+                    aria-expanded="false"
+                    aria-controls="listado_' . $Tabla3 . '">';
+                echo 'Imágenes para ventas';
+                echo '</h4>';
                 
                 
 ?>
@@ -630,6 +639,23 @@ div[id^="dropzone_"]:hover {
 
 </div>
 
+<div class="collapse container py-4" id="listado_<?= $Tabla3 ?>">
+    <h3 class="mb-4">Imágenes para ventas</h3>
+
+    <div class="drop-zone mb-3" id="dropZoneSale">
+        <i class="bi bi-cloud-upload fs-1"></i>
+        <p class="mb-1"><?= Trd(45) ?></p>
+        <small><?= Trd(46) ?></small>
+        <input type="file" id="fileInputSale" name="upload_file[]" multiple accept="image/*" class="d-none">
+    </div>
+
+    <div class="progress mb-3 d-none" id="uploadProgressSale" style="height: 6px;">
+        <div class="progress-bar bg-success" style="width: 0%"></div>
+    </div>
+
+    <div class="row g-3" id="galleryContainerSale"></div>
+</div>
+
 <!-- Modal vista previa -->
 <div class="modal fade" id="previewModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -680,10 +706,10 @@ div[id^="dropzone_"]:hover {
 
                 $Tabla3 = 'packing_list';
 
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#listado_' . $Tabla3 . '" 
-                        aria-expanded="false" 
+                echo '<h4 class="mb-4 btn-toggle-custom fs-5"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#listado_' . $Tabla3 . '"
+                    aria-expanded="false"
                         aria-controls="listado_' . $Tabla3 . '"
                         onclick="toggleElementoClone(\'add_form_' . $Tabla3 . '_clone\')">';
                 echo Trd(32);
@@ -1541,14 +1567,22 @@ function inicializarEstadoTabla(IdTabla) {
         // Es crucial que los 'name' del formulario coincidan con las claves JSON de tu API (Nombre, Direccion)
         $.each(formDataArray, function(index, field) {
             // Usamos el campo 'name' del formulario como la clave del objeto
+            var originalName = field.name;
             var fieldName = field.name;
             fieldName = fieldName.replace("edit_", "");
-            if ($("#"+fieldName).hasClass('currency')) {
-                formData[fieldName] = LimpiaMonedaMejorada(field.value);
-            }
-            else{
-                formData[fieldName] = field.value;
-            }
+            var $input = $("#" + originalName);
+// 1. Verificamos si es un campo Summernote (vía data-tipo o si tiene la clase inicializada)
+    if ($input.data('tipo') === 'html' || $input.hasClass('note-codable')) {
+        formData[fieldName] = $input.summernote('code');
+    } 
+    // 2. Formato moneda
+    else if ($("#" + fieldName).hasClass('currency') || $input.hasClass('currency')) {
+        formData[fieldName] = LimpiaMonedaMejorada(field.value);
+    } 
+    // 3. Valor estándar de formulario
+    else {
+        formData[fieldName] = field.value;
+    }
         });
         // 3. Realizar la solicitud AJAX
         $.ajax({
@@ -1737,7 +1771,8 @@ function getRecordData(Id,IdTabla) {
         IdSelected = Id;
         //alert(Id)
         $('#product_id').val(Id)
-        loadGallery();
+        loadGallery('products_images');
+        loadGallery('products_images_sale');
     }
 
     if (IdTabla == 'distance_charges')
@@ -1876,6 +1911,7 @@ function getRecordData(Id,IdTabla) {
                 $("#add_form_products_clone_edit").show();
                 listado('products_categories');
                 listado('products_images');
+                listado('products_images_sale');
                 listado('products_videos');
                 listado('packing_list');
                 listado('related_products');
@@ -2099,7 +2135,7 @@ htmlStructure += '<thead class="table-light border-bottom"><tr>';
 var estado = tablaEstados[IdTabla];
 
 titulos.forEach(row => {
-    if (row['Titulo'] != 'Id' && row['Titulo'] != 'IId' && row['Titulo'] != 'Producto_rup' && row['Titulo'] != 'Producto_rsp') {
+    if (row['Titulo'] != 'Id' && row['Titulo'] != 'IId' && row['Titulo'] != 'Producto_rup' && row['Titulo'] != 'Producto_rsp' && row['Titulo'] != 'ID') {
         let alineacion = row['Alineacion'] || 'center';
         let campoBD = row['Campo'] || row['Titulo']; 
         
@@ -3374,31 +3410,35 @@ $(document).ready(function() {
     
 
     // ===== Cargar galería existente =====
-    function loadGallery() {
+    function gallerySelector(table, element) {
+        return '#' + element + (table === 'products_images_sale' ? 'Sale' : '');
+    }
+
+    function loadGallery(table = 'products_images') {
         let productId = $('#product_id').val();
         $.ajax({
             url: 'api/image_actions',
             type: 'POST',
             headers: { 'Authorization': 'Bearer ' + TOKEN },
-            data: { action: 'list', product_id: productId },
+            data: { action: 'list', product_id: productId, table: table },
             dataType: 'json',
             success: function (res) {
                 if (res.success) {
-                    $('#galleryContainer').empty();
+                    $(gallerySelector(table, 'galleryContainer')).empty();
                     res.data.forEach(item => {
-                        addItemToDOM(item.IId, item.Image, item.Orden);
+                        addItemToDOM(item.IId, item.Image, item.Orden, table);
                     });
                 }
             }
         });
     }
 
-    function addItemToDOM(id, image, orden) {
-        const thumb = "<?= CFPUBLICURL ?>/"+ID_CLIENTE+"/products_images/thumbnails/" + image;
-        const full  = "<?= CFPUBLICURL ?>/"+ID_CLIENTE+"/products_images/originals/" + image;
+    function addItemToDOM(id, image, orden, table = 'products_images') {
+        const thumb = "<?= CFPUBLICURL ?>/" + ID_CLIENTE + "/" + table + "/thumbnails/" + image;
+        const full  = "<?= CFPUBLICURL ?>/" + ID_CLIENTE + "/" + table + "/originals/" + image;
 
     const html = `
-        <div class="col-6 col-md-3 col-lg-2 gallery-item" data-id="${id}">
+        <div class="col-6 col-md-3 col-lg-2 gallery-item" data-id="${id}" data-table="${table}">
             <span class="order-badge">${orden}</span>
             <img src="${thumb}" data-full="${full}" class="preview-img">
             <button class="btn btn-danger btn-sm btn-delete" title="Eliminar">
@@ -3413,43 +3453,42 @@ $(document).ready(function() {
                 </button>
             </div>
         </div>`;
-    $('#galleryContainer').append(html);
+    $(gallerySelector(table, 'galleryContainer')).append(html);
     }
 
-    
-
     // ===== Drag & drop zona de carga =====
-    const dropZone  = document.getElementById('dropZone');
-    const fileInput = document.getElementById('fileInput');
+    [
+        { dropZoneId: 'dropZone', fileInputId: 'fileInput', table: 'products_images' },
+        { dropZoneId: 'dropZoneSale', fileInputId: 'fileInputSale', table: 'products_images_sale' }
+    ].forEach(gallery => {
+        const dropZone = document.getElementById(gallery.dropZoneId);
+        const fileInput = document.getElementById(gallery.fileInputId);
+        if (!dropZone || !fileInput) return;
 
-    dropZone.addEventListener('click', () => fileInput.click());
-
-    dropZone.addEventListener('dragover', e => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', event => {
+            event.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', event => {
+            event.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(event.dataTransfer.files, gallery.table);
+        });
+        fileInput.addEventListener('change', () => {
+            handleFiles(fileInput.files, gallery.table);
+            fileInput.value = '';
+        });
     });
 
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('dragover');
-    });
-
-    dropZone.addEventListener('drop', e => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        handleFiles(e.dataTransfer.files);
-    });
-
-    fileInput.addEventListener('change', () => {
-        handleFiles(fileInput.files);
-        fileInput.value = '';
-    });
-
-function handleFiles(files) {
+function handleFiles(files, table) {
     let productId = $('#product_id').val();
     if (!files.length) return;
 
     const formData = new FormData();
     formData.append('product_id', productId);
+    formData.append('table', table);
 
     let validFiles = 0;
     for (let i = 0; i < files.length; i++) {
@@ -3465,6 +3504,7 @@ function handleFiles(files) {
 
     // Mostrar placeholders "uploading" en la galería
     const placeholders = [];
+    const $gallery = $(gallerySelector(table, 'galleryContainer'));
     for (let i = 0; i < validFiles; i++) {
         const $ph = $(`
             <div class="col-6 col-md-3 col-lg-2 gallery-item uploading">
@@ -3473,7 +3513,7 @@ function handleFiles(files) {
                 <div class="spinner-border spinner-border-sm text-light item-spinner" role="status"></div>
             </div>
         `);
-        $('#galleryContainer').append($ph);
+        $gallery.append($ph);
         placeholders.push($ph);
     }
 
@@ -3481,7 +3521,7 @@ function handleFiles(files) {
     $('#loadingText').text('Subiendo imágenes...');
     $('#loadingOverlay').removeClass('d-none');
 
-    const $progress = $('#uploadProgress');
+    const $progress = $(gallerySelector(table, 'uploadProgress'));
     const $bar = $progress.find('.progress-bar');
     $progress.removeClass('d-none');
     $bar.css('width', '0%');
@@ -3517,12 +3557,12 @@ function handleFiles(files) {
             if (res.success) {
                 res.files.forEach(f => {
                     if (f.success) {
-                        addItemToDOM(f.id, f.image, f.orden);
+                        addItemToDOM(f.id, f.image, f.orden, table);
                     } else {
                         alert(f.message);
                     }
                 });
-                updateOrderBadges();
+                updateOrderBadges(table);
             } else {
                 alert(res.message || '<?= Trd(52) ?>');
             }
@@ -3545,6 +3585,7 @@ function handleFiles(files) {
 $(document).on('click', '.btn-delete', function () {
     const $item = $(this).closest('.gallery-item');
     const id = $item.data('id');
+    const table = $item.data('table');
 
     if (!confirm('¿Eliminar esta imagen?')) return;
 
@@ -3555,14 +3596,14 @@ $.ajax({
     url: 'api/image_actions',
     type: 'POST',
     headers: { 'Authorization': 'Bearer ' + TOKEN },
-    data: { action: 'delete', id: id },
+    data: { action: 'delete', id: id, table: table },
     dataType: 'json',
     success: function (res) {
         if (res.success) {
             $item.fadeOut(200, function () {
                 $(this).remove();
-                updateOrderBadges();
-                saveOrder();
+                updateOrderBadges(table);
+                saveOrder(table);
             });
         } else {
             $item.removeClass('uploading');
@@ -3577,35 +3618,37 @@ $.ajax({
 // ===== Mover izquierda (subir orden) =====
 $(document).on('click', '.btn-move-up', function () {
     const $item = $(this).closest('.gallery-item');
+    const table = $item.data('table');
     const $prev = $item.prev('.gallery-item');
 
     if ($prev.length) {
         $item.insertBefore($prev);
-        updateOrderBadges();
-        saveOrder();
+        updateOrderBadges(table);
+        saveOrder(table);
     }
 });
 
 // ===== Mover derecha (bajar orden) =====
 $(document).on('click', '.btn-move-down', function () {
     const $item = $(this).closest('.gallery-item');
+    const table = $item.data('table');
     const $next = $item.next('.gallery-item');
 
     if ($next.length) {
         $item.insertAfter($next);
-        updateOrderBadges();
-        saveOrder();
+        updateOrderBadges(table);
+        saveOrder(table);
     }
 });
 
-    function updateOrderBadges() {
-        $('#galleryContainer .gallery-item').each(function (index) {
+    function updateOrderBadges(table) {
+        $(gallerySelector(table, 'galleryContainer') + ' .gallery-item').each(function (index) {
             $(this).find('.order-badge').text(index + 1);
         });
     }
 
-    function saveOrder() {
-        const order = $('#galleryContainer .gallery-item').map(function () {
+    function saveOrder(table) {
+        const order = $(gallerySelector(table, 'galleryContainer') + ' .gallery-item').map(function () {
             return $(this).data('id');
         }).get();
 
@@ -3615,7 +3658,8 @@ $.ajax({
     headers: { 'Authorization': 'Bearer ' + TOKEN },
     data: {
         action: 'reorder',
-        order: JSON.stringify(order)
+        order: JSON.stringify(order),
+        table: table
     },
     dataType: 'json',
     success: function (res) {

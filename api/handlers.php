@@ -74,6 +74,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
         'products',
         'products_categories',
         'products_images',
+        'products_images_sale',
         'products_videos',
         'products_files',
         'packing_list',

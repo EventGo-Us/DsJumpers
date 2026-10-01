@@ -253,6 +253,12 @@ switch ($resource) {
 
         header('Content-Type: application/json');
 
+        $imageTable = $_POST['table'] ?? 'products_images';
+        if (!in_array($imageTable, ['products_images', 'products_images_sale'], true)) {
+            echo json_encode(['success' => false, 'message' => 'Tabla de imágenes no válida']);
+            exit;
+        }
+
         $action = $_POST['action'] ?? '';
 
         switch ($action) {
@@ -260,7 +266,7 @@ switch ($resource) {
             case 'delete':
                 $id = intval($_POST['id'] ?? 0);
 
-                $stmt = $db->prepare("SELECT Image FROM products_images WHERE IId = ?");
+                $stmt = $db->prepare("SELECT Image FROM $imageTable WHERE IId = ?");
                 $stmt->execute([$id]);
                 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -272,9 +278,9 @@ switch ($resource) {
                     //@unlink("tmp/" . $imageFile);
                     //@unlink("tmp/thumbnail_" . $baseName . ".avif");
                     //@unlink("tmp/thumbnail_" . $baseName . ".jpg");
-                    @delete_Aws(ID_CLIENTE,"products_images",$imageFile);
+                    @delete_Aws(ID_CLIENTE, $imageTable, $imageFile);
 
-                    $stmt = $db->prepare("DELETE FROM products_images WHERE IId = ?");
+                    $stmt = $db->prepare("DELETE FROM $imageTable WHERE IId = ?");
                     $stmt->execute([$id]);
 
                     echo json_encode(['success' => true]);
@@ -293,7 +299,7 @@ switch ($resource) {
 
                 //$db->beginTransaction();
                 foreach ($order as $index => $id) {
-                    $stmt = $db->prepare("UPDATE products_images SET Orden = ?, FechaCambio = NOW() WHERE IId = ?");
+                    $stmt = $db->prepare("UPDATE $imageTable SET Orden = ?, FechaCambio = NOW() WHERE IId = ?");
                     $stmt->execute([$index + 1, intval($id)]);
                 }
                 //$db->commit();
@@ -304,7 +310,7 @@ switch ($resource) {
             case 'list':
                 $product_id = intval($_POST['product_id'] ?? 0);
 
-                $stmt = $db->prepare("SELECT IId, Orden, Image FROM products_images WHERE Product = ? ORDER BY Orden ASC");
+                $stmt = $db->prepare("SELECT IId, Orden, Image FROM $imageTable WHERE Product = ? ORDER BY Orden ASC");
                 $stmt->execute([$product_id]);
                 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -432,6 +438,10 @@ switch ($resource) {
         
         handle_generic_crud($resource,$db, $method, $id, $data);
         break;
+    case 'products_images_sale':
+        
+        handle_generic_crud($resource,$db, $method, $id, $data);
+        break;        
     case 'products_videos':
         
         handle_generic_crud($resource,$db, $method, $id, $data);

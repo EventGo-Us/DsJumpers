@@ -4,7 +4,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 
-function enviarEmail($config, $destinatario, $asunto, $mensaje, $adjuntos = [],$contenidoBinario, $nombreArchivo) {
+function enviarEmail($config, $destinatario, $asunto, $mensaje, $adjuntos = [], $contenidoBinario = null, $nombreArchivo = "") {
     
     $mail = new PHPMailer(true);
     

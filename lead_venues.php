@@ -42,7 +42,11 @@
                 <option></option> 
 
                         <?php
+                        if ($Idioma == 'es') 
                             $query = "select Id,Nombre FROM  surfaces ORDER BY Nombre";
+                        else
+                            $query = "select Id, Name as Nombre FROM  surfaces ORDER BY Name";
+
                             $stmt = $db->prepare($query);
                             $stmt->execute();
                             $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);

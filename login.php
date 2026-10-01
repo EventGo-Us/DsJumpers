@@ -33,7 +33,7 @@ $db = $database->getConnection();
             $_SESSION['nombre_db']    = $SDB['nombre_db'];
             $_SESSION['id_cliente']   = $SDB['Id'];
 
-
+            
             $loginUrl = URL_BASE."/api/user_login";            
 
             $data = [
@@ -60,7 +60,9 @@ $db = $database->getConnection();
                 echo 'Error en cURL: ' . curl_error($ch);
             } else {
                 if ($httpCode === 200) {
+                    
                     $result = json_decode($response, true);
+                    //die(print_r($result));
                     //$jwtToken = $result['jwt'] ?? null;
                     $idusuario = $result['Id'];
                     $rolusuario = $result['Tipo'];

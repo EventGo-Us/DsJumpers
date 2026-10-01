@@ -15,6 +15,12 @@ use Aws\S3\S3Client;
 header('Content-Type: application/json');
 
 $product_id = intval($_POST['product_id'] ?? 0);
+$gallery = $_POST['table'] ?? 'products_images';
+
+if (!in_array($gallery, ['products_images', 'products_images_sale'], true)) {
+    echo json_encode(['success' => false, 'message' => 'Tabla de imágenes no válida']);
+    exit;
+}
 
 if (!$product_id) {
     echo json_encode(['success' => false, 'message' => 'Producto no especificado']);
@@ -68,7 +74,6 @@ for ($i = 0; $i < $count; $i++) {
         $finalName = $fileName . ".avif";
 
                     $client = $_SESSION['id_cliente'];
-                    $gallery = "products_images";
                     $normal = $finalName;
                     $miniatura = "thumbnail_".$finalName;
                     $miniaturaj = "thumbnail_".$finalName;
@@ -77,12 +82,12 @@ for ($i = 0; $i < $count; $i++) {
 
 
         // Obtener el siguiente orden
-        $stmt = $pdo->prepare("SELECT COALESCE(MAX(Orden), 0) + 1 AS next_order FROM products_images WHERE Product = ?");
+        $stmt = $pdo->prepare("SELECT COALESCE(MAX(Orden), 0) + 1 AS next_order FROM $gallery WHERE Product = ?");
         $stmt->execute([$product_id]);
         $nextOrder = $stmt->fetch(PDO::FETCH_ASSOC)['next_order'];
 
         // Insertar en BD
-        $stmt = $pdo->prepare("INSERT INTO products_images (Product, Orden, Image, FechaCreacion, FechaCambio) VALUES (?, ?, ?, NOW(), NOW())");
+        $stmt = $pdo->prepare("INSERT INTO $gallery (Product, Orden, Image, FechaCreacion, FechaCambio) VALUES (?, ?, ?, NOW(), NOW())");
         $stmt->execute([$product_id, $nextOrder, $finalName]);
         $newId = $pdo->lastInsertId();
 
@@ -151,7 +156,8 @@ function upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj){
 
         return true;
     } catch (Aws\S3\Exception\S3Exception $e) {
-        error_log("Error al subir a S3: " . $e->getMessage());
+        //error_log("Error al subir a S3: " . $e->getMessage());
+        echo"Error al subir a S3: " . $e->getMessage();
         return false;
     }        
 } 

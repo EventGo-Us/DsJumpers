@@ -68,7 +68,7 @@ include_once 'head.php';
                     <select class="form-select" id="operator_id">
                         <option value=""><?= Trd(6) ?></option>
                         <?php
-                        include 'conexion.php';
+                        //include 'conexion.php';
                         $ops = $db->query("SELECT Id, CONCAT(Nombres, ' ', Apellidos) AS Nombre FROM operators WHERE Estatus = 'A' OR Estatus IS NULL")->fetchAll(PDO::FETCH_ASSOC);
                         foreach($ops as $o) {
                             echo "<option value='{$o['Id']}'>{$o['Nombre']}</option>";

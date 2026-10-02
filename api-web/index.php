@@ -3030,7 +3030,27 @@ function get_addresses($table_name,$db, $method, $id, $data){
         case 'POST': 
             $customerId = $data->customerId;
 
-            $stmt = $db->prepare("SELECT id, alias, country, state, city, street, colonia, zip, reference, is_default FROM sale_customer_addresses WHERE customer_id = :cid ORDER BY is_default DESC, id DESC");
+            $stmt = $db->prepare("SELECT 
+            a.id, 
+            a.alias, 
+            a.country, 
+            a.state, 
+            a.city, 
+            a.street, 
+            a.colonia, 
+            a.zip, 
+            a.reference, 
+            a.is_default,
+            CASE 
+                WHEN UPPER(a.country) = 'MX' THEN 0.16
+                ELSE COALESCE(t.StateRate, 0)
+            END AS tax
+        FROM sale_customer_addresses a
+        LEFT JOIN taxrates_zip t 
+            ON a.state = t.State 
+           AND a.zip = t.Zip
+        WHERE a.customer_id = :cid 
+        ORDER BY a.is_default DESC, a.id DESC");
             $stmt->execute([':cid' => $customerId]);
             $addresses = $stmt->fetchAll(PDO::FETCH_ASSOC);          
 

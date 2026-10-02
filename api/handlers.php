@@ -662,7 +662,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                             $img_folder = $table_name ;
                             if ($table_name == "related_products" OR $table_name == "upselling_products")
                                 $img_folder = "products_images";
-                            $row[$columna] = '<img src="'.CFPUBLICURL.'/'.ID_CLIENTE.'/'.$img_folder.'/thumbnails/'.htmlspecialchars($valor) . '" alt="imagen" style="width:50px;">';
+                            $row[$columna] = '<img src="'.CFPUBLICURL.'/'.ID_CLIENTE.'/'.$img_folder.'/thumbnails/'.htmlspecialchars((string)$valor) . '" alt="imagen" style="width:50px;">';
                         }
                     }
                 }                    
@@ -798,7 +798,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 } 
                 else{
                     $valor = isset($data->{$registro['Campo']}) 
-                        ? htmlspecialchars(strip_tags($data->{$registro['Campo']}))
+                        ? htmlspecialchars((string)strip_tags($data->{$registro['Campo']}))
                         : null;
                 }
 
@@ -1066,7 +1066,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 {
                     $campo = strtolower($registro['Campo']);
                     $valor = isset($data->{$registro['Campo']}) 
-                        ? htmlspecialchars(strip_tags($data->{$registro['Campo']}))
+                        ? htmlspecialchars((string)strip_tags($data->{$registro['Campo']}))
                         : null;
                     $tipocampo = strtolower($registro['TipoCampo']);
                     if ($tipocampo =='checkbox'){
@@ -1079,32 +1079,47 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                         $stmt->bindValue(":" . $campo, $valor);
                     }
                     elseif ($tipocampo =='img'){
+                        /*
                         if ($data->{"file_".$registro['Campo']}!=""){
                             $valor = isset($data->{"file_".$registro['Campo']}) 
-                                ? htmlspecialchars(strip_tags($data->{"file_".$registro['Campo']}))
+                                ? htmlspecialchars((string)strip_tags($data->{"file_".$registro['Campo']}))
                                 : null;                            
                             $stmt->bindValue(":" . $campo, $valor);
                         }else{
                             $valor = isset($data->{"file_".$registro['Campo']."_1"}) 
-                                ? htmlspecialchars(strip_tags($data->{"file_".$registro['Campo']."_1"}))
+                                ? htmlspecialchars((string)strip_tags($data->{"file_".$registro['Campo']."_1"}))
                                 : null;                            
                             $stmt->bindValue(":" . $campo, $valor);
                         }
-                        if ($valor!=""){
-                        $client = ID_CLIENTE;
-                        $gallery = $table_name;
-                        $normal = $valor;
-                        $miniatura = "thumbnail_".$valor;
-                        $miniaturaj = "thumbnail_".$valor;
-                        $miniaturaj =  str_replace("avif", "jpg", $miniaturaj);
-                        if ($table_name == 'account' ){
-                            if ($data->{"file_Logo"}!="")
-                                upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj);
-                        }else{
-                            upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj);
+                    */
+                        $valor="";
+                        if ($data->{"file_".$registro['Campo']}!= $data->{"file_".$registro['Campo']}."_1" AND $data->{"file_".$registro['Campo']}!="" ){
+                            $valor = isset($data->{"file_".$registro['Campo']}) 
+                                ? htmlspecialchars((string)strip_tags($data->{"file_".$registro['Campo']}))
+                                : null;                            
+                            $stmt->bindValue(":" . $campo, $valor);
                         }
-                        
-                        $stmt->bindValue(":" . $campo, $valor);                        
+                        else{
+                            $valoro = isset($data->{"file_".$registro['Campo']."_1"}) 
+                                ? htmlspecialchars((string)strip_tags($data->{"file_".$registro['Campo']."_1"}))
+                                : null;                            
+                            $stmt->bindValue(":" . $campo, $valoro);
+                        }                        
+                        if ($valor!=""){
+                            $client = ID_CLIENTE;
+                            $gallery = $table_name;
+                            $normal = $valor;
+                            $miniatura = "thumbnail_".$valor;
+                            $miniaturaj = "thumbnail_".$valor;
+                            $miniaturaj =  str_replace("avif", "jpg", $miniaturaj);
+                            if ($table_name == 'account' ){
+                                if ($data->{"file_Logo"}!="")
+                                    upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj);
+                            }else{
+                                upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj);
+                            }
+                            
+                            //$stmt->bindValue(":" . $campo, $valor);                        
                         }
                     }
                     elseif ($tipocampo =='html'){
@@ -1129,7 +1144,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 $IdC++;
                 $campo = strtolower($llave['Campo']);
                 $valor = isset($data->{$llave['Campo']}) 
-                    ? htmlspecialchars(strip_tags($data->{$llave['Campo']}))
+                    ? htmlspecialchars((string)strip_tags($data->{$llave['Campo']}))
                     : null;
                         if ($campo == 'iid'){
                             $valor = $data->{'IId_'.$table_name};
@@ -1240,7 +1255,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 $IdC++;
                 $campo = strtolower($llave['Campo']);
                 $valor = isset($data->{$llave['Campo']}) 
-                    ? htmlspecialchars(strip_tags($data->{$llave['Campo']}))
+                    ? htmlspecialchars((string)strip_tags($data->{$llave['Campo']}))
                     : null;
                 $stmt->bindValue(":" . $campo, $valor);
                 if ($IdC == 1)

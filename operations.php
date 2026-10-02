@@ -139,15 +139,14 @@ $id_op = $_GET['IdOperation'];
 $stages = ['BODEGA','SURTIDO', 'CARGA', 'INSTALACION', 'PRUEBA FUNCIONAMIENTO', 'ENTREGA', 'RECOLECCION', 'ACONDICIONAMIENTO', 'LIMPIEZA', 'LAVADO','REPARACION',  'ALMACENADO','FINALIZADO'];
 
 $stage = $db->query("SELECT id_lead, status FROM operation_master WHERE id_operation = $id_op")->fetch();
-
-
 $id_lead = $stage['id_lead'];
 $currentStage = $stage['status'];
 
 $lead = $db->query("SELECT Balance FROM lead WHERE Id = $id_lead")->fetch();
-
 $Balance = $lead['Balance'];
 
+$LoadProc = $db->query("SELECT LoadProc FROM account")->fetch();
+$LoadProc = $LoadProc['LoadProc'];
 
 if ($currentStage == 'ACONDICIONAMIENTO')
     $currentStage = 'REPARACION';
@@ -747,11 +746,44 @@ $('#btn-update-stage').on('click', function() {
             processData: false, // Vital para FormData
             contentType: false, // Vital para FormData
             success: function(response) {
-if (document.referrer) {
-        window.location.href = document.referrer;
-    } else {
-        history.back(); // Respaldo si no hay historial previo registrado
-    }
+
+            <?php if ($LoadProc == 1) { ?>
+                if (nextStage == 'CARGA') {
+                    let formData_load = new FormData();
+                    // Datos básicos
+                    formData_load.append('id_route', <?php echo $id_op?>);
+                    formData_load.append('currentStage', 'CARGA');
+                    formData_load.append('next_stage', 'INSTALACION');
+
+                    $.ajax({
+                        url: API_BASE_URL + 'process_stage_change_em/',
+                        method: 'POST',
+                        data: formData_load,
+                        headers: { 'Authorization': 'Bearer ' + TOKEN },            
+                        processData: false, // Vital para FormData
+                        contentType: false, // Vital para FormData
+                        success: function(response) {
+                            history.back();
+                        },
+                        error: function() {
+
+                        }
+                    });     
+                } else {
+                    if (document.referrer) {
+                        window.location.href = document.referrer;
+                    } else {
+                        history.back(); // Respaldo si no hay historial previo registrado
+                    }
+                }
+            <?php }else{?>
+                    if (document.referrer) {
+                        window.location.href = document.referrer;
+                    } else {
+                        history.back(); // Respaldo si no hay historial previo registrado
+                    }            
+            <?php } ?>
+
             },
             error: function() {
                 showToast('<?= Trd(32) ?>', 'danger');

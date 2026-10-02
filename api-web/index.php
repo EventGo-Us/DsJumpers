@@ -2267,14 +2267,14 @@ function products_sale($table_name,$db, $method, $id, $data){
             $stmt->execute();
             $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);            
             foreach ($productos as $product) {
-                $sql = "SELECT Image FROM products_images WHERE Product = :idproduct AND Orden = 1";
+                $sql = "SELECT Image FROM  products_images_sale WHERE Product = :idproduct AND Orden = 1";
                 $stmt = $db->prepare($sql);
                 $stmt->bindValue(":idproduct", $product['Id']); 
                 $stmt->execute();
                 $Image = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
             foreach ($productos as $product) {
-                $sql = "SELECT Image FROM products_images WHERE Product = :idproduct ORDER BY Orden";
+                $sql = "SELECT Image FROM products_images_sale WHERE Product = :idproduct ORDER BY Orden";
                 $stmt = $db->prepare($sql);
                 $stmt->bindValue(":idproduct",$product['Id']); 
                 $stmt->execute();
@@ -2683,14 +2683,14 @@ function products_sale_stock($table_name,$db, $method, $id, $data){
                         products.`Name`, 
                         products.SalePrice, 
                         products.Discount, 
-                        products_images.Image, 
+                        products_images_sale.Image, 
                         sum(inventory_stock.Quantity_for_sale) as Quantity
                     FROM
                         products
                         INNER JOIN
-                        products_images
+                        products_images_sale
                         ON 
-                            products.Id = products_images.Product
+                            products.Id = products_images_sale.Product
                         INNER JOIN
                         inventory_stock
                         ON 
@@ -2698,7 +2698,7 @@ function products_sale_stock($table_name,$db, $method, $id, $data){
                     WHERE
                         products.Active = 1 AND
                         products.For_Sale = 1 AND
-                        products_images.Orden = 1 AND
+                        products_images_sale.Orden = 1 AND
                         inventory_stock.Quantity_for_sale > 0 AND 
                         inventory_stock.Active = 1
                         GROUP BY inventory_stock.Id_product
@@ -2749,7 +2749,7 @@ function products_sale_hero($table_name,$db, $method, $id, $data){
                         INNER JOIN
                         products_images
                         ON 
-                            products.Id = products_images.Product
+                            products.Id = products_images_sale.Product
                         INNER JOIN
                         inventory_stock
                         ON 
@@ -2757,7 +2757,7 @@ function products_sale_hero($table_name,$db, $method, $id, $data){
                     WHERE
                         products.Active = 1 AND
                         products.For_Sale = 1 AND
-                        products_images.Orden = 1 AND
+                        products_images_sale.Orden = 1 AND
                         inventory_stock.Quantity_for_sale > 0 AND 
                         inventory_stock.Active = 1
                         GROUP BY inventory_stock.Id_product
@@ -3201,6 +3201,10 @@ function get_all_sales($table_name,$db, $method, $id, $data){
                 // Filtramos por el nombre de la categoría (o el ID si lo prefieres cambiar)
                 if ($categoria == 'stock'){
                     $where_categoria = " AND inventory_stock.Quantity_for_sale > 0 ";
+                    if ($scategoria !=""){
+                        $where_categoria.= " AND v_products.Nombre = :categoria ";
+                        $params[':categoria'] = $scategoria;                        
+                    }    
                 }
                 elseif ($categoria == 'byrequest'){
                     $where_categoria = " AND v_products.OnlyRequest = 1 ";
@@ -3255,19 +3259,19 @@ function get_all_sales($table_name,$db, $method, $id, $data){
                     v_products.SalePrice, 
                     v_products.Discount,
                     (v_products.SalePrice - v_products.Discount) as precio_neto,
-                    products_images.Image, 
+                    products_images_sale.Image, 
                     SUM(inventory_stock.Quantity_for_sale) as Quantity,
                     v_products.Featured,
                     v_products.NewDesign,
                     v_products.OnlyRequest
                 FROM
                     v_products
-                    INNER JOIN products_images ON v_products.Id = products_images.Product
+                    INNER JOIN products_images_sale ON v_products.Id = products_images_sale.Product
                     INNER JOIN inventory_stock ON v_products.Id = inventory_stock.Id_product
                 WHERE
                     v_products.Active = 1 AND
                     v_products.For_Sale = 1 AND
-                    products_images.Orden = 1 AND
+                    products_images_sale.Orden = 1 AND
                     inventory_stock.Active = 1
                     $where_categoria
                 GROUP BY 
@@ -3276,7 +3280,7 @@ function get_all_sales($table_name,$db, $method, $id, $data){
                     v_products.Nombre, 
                     v_products.SalePrice, 
                     v_products.Discount,
-                    products_images.Image
+                    products_images_sale.Image
                 $order_by
                 LIMIT :limit OFFSET :offset
             ";
@@ -3299,16 +3303,19 @@ function get_all_sales($table_name,$db, $method, $id, $data){
             $sql_total = "
                 SELECT COUNT(DISTINCT v_products.Id) as total 
                 FROM v_products
-                INNER JOIN products_images ON v_products.Id = products_images.Product
+                INNER JOIN products_images_sale ON v_products.Id = products_images_sale.Product
                 INNER JOIN inventory_stock ON v_products.Id = inventory_stock.Id_product
-                WHERE v_products.Active = 1 AND v_products.For_Sale = 1 AND products_images.Orden = 1 AND inventory_stock.Quantity_for_sale > 0 AND inventory_stock.Active = 1
+                WHERE v_products.Active = 1 AND v_products.For_Sale = 1 AND products_images_sale.Orden = 1 AND inventory_stock.Quantity_for_sale > 0 AND inventory_stock.Active = 1
                 $where_categoria
             ";
             //echo $sql_total;
             $stmt_total = $db->prepare($sql_total);
             if ($categoria !== 'all' && !empty($categoria)) {
                 if ($categoria == 'stock'){
-                 
+                    
+                    if ($scategoria !=""){
+                        $stmt_total->bindValue(':categoria', $categoria);                 
+                    }                   
                 }
                 elseif ($categoria == 'byrequest'){
                 
@@ -3586,7 +3593,7 @@ function categories($table_name,$db, $method, $id, $data){
     switch ($method) {
         case 'POST': 
             // 1. Definimos el SQL como un simple string (texto)
-            $sql = "SELECT Id, Nombre, Imagen FROM categories WHERE WebRent = 1 ORDER BY Nombre ";
+            $sql = "SELECT Id, Nombre, Imagen FROM categories WHERE IntExt = 1 ORDER BY Nombre ";
             // 2. Preparamos la consulta
             $stmt = $db->prepare($sql);
             // 3. Vinculamos el valor (asegúrate que $data->Product exista)

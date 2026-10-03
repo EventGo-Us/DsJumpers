@@ -2742,12 +2742,12 @@ function products_sale_hero($table_name,$db, $method, $id, $data){
                         products.`Name`, 
                         products.SalePrice, 
                         products.Discount, 
-                        products_images.Image, 
+                        products_images_sale.Image, 
                         sum(inventory_stock.Quantity_for_sale) as Quantity
                     FROM
                         products
                         INNER JOIN
-                        products_images
+                        products_images_sale
                         ON 
                             products.Id = products_images_sale.Product
                         INNER JOIN
@@ -2772,7 +2772,7 @@ function products_sale_hero($table_name,$db, $method, $id, $data){
             $producto = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($producto as $prd) {
-                $sql = "SELECT Image FROM products_images WHERE Product = '".$prd['Id']."' AND ORden > 1 ORDER BY Orden LIMIT 1";
+                $sql = "SELECT Image FROM products_images_sale WHERE Product = '".$prd['Id']."' AND ORden > 1 ORDER BY Orden LIMIT 1";
                 $stmt = $db->prepare($sql);
                 $stmt->execute();
                 $images = $stmt->fetchAll(PDO::FETCH_ASSOC);

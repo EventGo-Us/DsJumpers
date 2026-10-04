@@ -252,7 +252,17 @@ switch ($resource) {
     case 'get_all_sales':
 	    //$Traducciones = Traducciones('get_all_sales',$lng,$db);            
         get_all_sales($resource,$db, $method, $id, $data);
-    break;    
+    break;   
+    
+    case 'get_all_blogs':          
+        get_all_blogs($resource,$db, $method, $id, $data);
+    break;  
+
+    case 'get_blog':
+    case 'get_blog_by_slug':
+    case 'blog':
+        get_blog($resource,$db, $method, $id, $data);
+    break;  
 
     case 'get_sale':
 	    //$Traducciones = Traducciones('get_all_sales',$lng,$db);            
@@ -3195,6 +3205,131 @@ function get_discounts($table_name,$db, $method, $id, $data){
             echo json_encode(array("message" => Trd(1)));
         break;
     }      
+}
+
+function get_all_blogs($table_name,$db, $method, $id, $data){
+    global $IDS;
+    switch ($method) {
+        case 'POST': 
+        case 'GET':
+            // 1. Recibir y sanitizar los parámetros
+            $pagina = isset($data->pagina) ? (int)$data->pagina : (isset($_GET['pagina']) ? (int)$_GET['pagina'] : 1);
+            $registros_por_pagina = isset($data->registros_por_pagina) ? (int)$data->registros_por_pagina : (isset($_GET['registros_por_pagina']) ? (int)$_GET['registros_por_pagina'] : 10);
+            $categoria = isset($data->categoria) ? $data->categoria : (isset($_GET['categoria']) ? $_GET['categoria'] : 'all');
+            $scategoria = isset($data->scategoria) ? $data->scategoria : (isset($_GET['scategoria']) ? $_GET['scategoria'] : '');
+            $orden = isset($data->orden) ? $data->orden : (isset($_GET['orden']) ? $_GET['orden'] : 'precio_menor');
+            $search = isset($data->search) ? $data->search : (isset($_GET['search']) ? $_GET['search'] : '');
+
+            // Calcular el desplazamiento (OFFSET) para el paginado
+            if ($pagina < 1) $pagina = 1;
+            $offset = ($pagina - 1) * $registros_por_pagina;
+
+            $where_search = "";
+            if ($search !== '' && !empty($search)) {
+                $where_search = " AND titulo LIKE :search ";
+            }
+
+            $sql = "SELECT * FROM blog_posts WHERE estado = 'publicado' {$where_search} ORDER BY fecha_creacion DESC LIMIT :limit OFFSET :offset";
+            $stmt = $db->prepare($sql);
+            // Los parámetros de LIMIT y OFFSET deben ser tratados estrictamente como enteros en PDO
+            $stmt->bindValue(':limit', $registros_por_pagina, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            if ($search !== '' && !empty($search)) {
+                $stmt->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
+            }
+
+            $stmt->execute();
+            $blogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $sql_total = "
+                SELECT COUNT(DISTINCT Id) as total 
+                FROM blog_posts
+                WHERE estado = 'publicado' {$where_search}
+            ";
+            //echo $sql_total;
+            $stmt_total = $db->prepare($sql_total);
+            if ($search !== '' && !empty($search)) {
+                $stmt_total->bindValue(':search', '%' . $search . '%', PDO::PARAM_STR);
+            }
+
+            $stmt_total->execute();
+            $total_registros = $stmt_total->fetch(PDO::FETCH_ASSOC)['total'];            
+
+            http_response_code(200);
+            echo json_encode([
+                "status" => "success",
+                "pagina_actual" => $pagina,
+                "registros_por_pagina" => $registros_por_pagina,
+                "total_registros" => (int)$total_registros,
+                "total_paginas" => ceil($total_registros / $registros_por_pagina),
+                "data" => $blogs
+            ]);
+
+        break;    
+        default:
+        // ------------------------------------------------------------------
+            http_response_code(405);
+            echo json_encode(array("message" => Trd(1)));
+        break;
+    }
+
+}
+
+function get_blog($table_name,$db, $method, $id, $data){
+    global $IDS;
+    switch ($method) {
+        case 'POST':
+        case 'GET':
+            $slug = '';
+            if (isset($data->slug) && !empty($data->slug)) {
+                $slug = $data->slug;
+            } elseif (isset($data->Slug) && !empty($data->Slug)) {
+                $slug = $data->Slug;
+            } elseif (!empty($id)) {
+                $slug = $id;
+            } elseif (isset($_GET['slug']) && !empty($_GET['slug'])) {
+                $slug = $_GET['slug'];
+            }
+
+            if (empty($slug)) {
+                http_response_code(400);
+                echo json_encode([
+                    "status" => "error",
+                    "message" => "Slug es requerido"
+                ]);
+                break;
+            }
+
+            $sql = "SELECT * FROM blog_posts WHERE slug = :slug";
+            $stmt = $db->prepare($sql);
+            $stmt->bindValue(':slug', $slug, PDO::PARAM_STR);
+            $stmt->execute();
+            $blog = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$blog) {
+                http_response_code(404);
+                echo json_encode([
+                    "status" => "error",
+                    "message" => "Blog no encontrado"
+                ]);
+                break;
+            }
+
+            http_response_code(200);
+            echo json_encode([
+                "status" => "success",
+                "data" => $blog
+            ]);
+        break;
+        default:
+            http_response_code(405);
+            echo json_encode(array("message" => Trd(1)));
+        break;
+    }
+}
+
+function get_blog_by_slug($table_name,$db, $method, $id, $data){
+    get_blog($table_name, $db, $method, $id, $data);
 }
 
 function get_all_sales($table_name,$db, $method, $id, $data){

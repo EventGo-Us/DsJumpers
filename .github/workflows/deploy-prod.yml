@@ -1,0 +1,294 @@
+name: Deploy to PROD
+
+# Every push to main builds the image, pushes it to ECR, creates a GitHub
+# release and deploys it to ECS. workflow_dispatch re-deploys an existing
+# release tag (or cuts a new one when left empty).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag_version:
+        description: "Existing release tag to re-deploy (leave empty to cut a new release from main)"
+        required: false
+        type: string
+
+# One prod deploy at a time, queued. Never cancel a deploy mid-flight: it can
+# leave a release created with no image, or a half-rolled service.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "041305873053"
+  ECR_REGISTRY: 041305873053.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPO: eventgo-app-prod
+  ECS_CLUSTER: eventgo-cluster-prod
+  ECS_SERVICE: eventgo-app-prod
+  ECS_CONTAINER: app-prod
+  SSM_PATH: /eventgo/prod/app
+
+jobs:
+  create-release:
+    name: PROD - Create GitHub Release
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.resolve_tag.outputs.tag }}
+
+    steps:
+      - name: Resolve or auto-generate release tag
+        id: resolve_tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_INPUT: ${{ inputs.tag_version }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${TAG_INPUT}" ]]; then
+            if [[ ! "${TAG_INPUT}" =~ ^release-[0-9]{2}-[0-9]{2}-[0-9]{4}(-[0-9]+)?$ ]]; then
+              echo "ERROR: tag_version '${TAG_INPUT}' does not match release-MM-DD-YYYY or release-MM-DD-YYYY-N" >&2
+              exit 1
+            fi
+            if ! gh api "/repos/${GITHUB_REPOSITORY}/git/refs/tags/${TAG_INPUT}" >/dev/null 2>&1; then
+              echo "ERROR: tag '${TAG_INPUT}' does not exist" >&2
+              exit 1
+            fi
+            echo "tag=${TAG_INPUT}" >> "$GITHUB_OUTPUT"
+            echo "Re-deploying existing tag: ${TAG_INPUT}"
+            exit 0
+          fi
+
+          BASE_TAG="release-$(date -u +'%m-%d-%Y')"
+
+          EXISTING="$(gh api "/repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/${BASE_TAG}" \
+            --jq '[.[].ref | ltrimstr("refs/tags/")]')"
+
+          TAG="${BASE_TAG}"
+          N=1
+          while [[ "$(jq --arg t "${TAG}" 'any(.[]; . == $t)' <<< "${EXISTING}")" == "true" ]]; do
+            N=$((N+1))
+            TAG="${BASE_TAG}-${N}"
+          done
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "New release tag: ${TAG}"
+
+      - name: Create GitHub release
+        if: inputs.tag_version == ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.resolve_tag.outputs.tag }}
+        run: |
+          # Target the exact commit that triggered the run, not whatever main
+          # points to by the time this step executes.
+          gh release create "${TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${TAG}" \
+            --target "${GITHUB_SHA}" \
+            --generate-notes
+
+  build-and-push:
+    name: PROD - Build and Push Image
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    if: github.ref == 'refs/heads/main'
+
+    outputs:
+      # deploy pins the task definition to this digest, never to a tag.
+      image_digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-release.outputs.tag }}
+
+      - name: Resolve short commit SHA
+        id: sha
+        shell: bash
+        run: echo "short=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Guardrail: the keys must belong to the eventgo account.
+      - name: Verify AWS account
+        shell: bash
+        run: |
+          ACCOUNT="$(aws sts get-caller-identity --query Account --output text)"
+          if [[ "${ACCOUNT}" != "${AWS_ACCOUNT_ID}" ]]; then
+            echo "ERROR: credentials belong to account ${ACCOUNT}, expected ${AWS_ACCOUNT_ID}" >&2
+            exit 1
+          fi
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # One build, three tags:
+      #   <release tag>  traceability back to the GitHub Release
+      #   <short sha>    traceability back to the commit (same scheme as the local script)
+      #   latest         mutable, human-friendly reference
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          # Single-arch manifest (no attestation index) keeps ECR and its
+          # lifecycle policy simple.
+          provenance: false
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ needs.create-release.outputs.tag }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ steps.sha.outputs.short }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify digest
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          if [[ ! "${IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "ERROR: invalid image digest '${IMAGE_DIGEST}'" >&2
+            exit 1
+          fi
+          echo "Pushed ${ECR_REPO}@${IMAGE_DIGEST}"
+
+  deploy:
+    name: PROD - Deploy to ECS
+    runs-on: ubuntu-latest
+    needs: [create-release, build-and-push]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Register new task definition (image pinned by digest)
+        id: taskdef
+        shell: bash
+        env:
+          IMAGE: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}@${{ needs.build-and-push.outputs.image_digest }}
+        run: |
+          set -euo pipefail
+
+          # 1) Current task definition of the service
+          CURRENT_TD_ARN="$(aws ecs describe-services \
+            --cluster "${ECS_CLUSTER}" \
+            --services "${ECS_SERVICE}" \
+            --query 'services[0].taskDefinition' \
+            --output text)"
+
+          aws ecs describe-task-definition \
+            --task-definition "${CURRENT_TD_ARN}" \
+            --query 'taskDefinition' \
+            --output json > td.json
+
+          # 2) Rebuild the secrets from Parameter Store, so a parameter added
+          #    in SSM is picked up on the next deploy without touching
+          #    Terraform. name = last path segment, valueFrom = parameter ARN.
+          #    No --with-decryption: only names and ARNs are needed here.
+          aws ssm get-parameters-by-path \
+            --path "${SSM_PATH}" --recursive \
+            --query 'Parameters[].{name:Name,valueFrom:ARN}' \
+            --output json \
+            | jq '[.[] | {name: (.name | split("/") | last), valueFrom: .valueFrom}] | sort_by(.name)' \
+            > secrets.json
+
+          # Guardrail: never register a task def without config (SSM error/throttle).
+          if [[ "$(jq 'length' secrets.json)" -eq 0 ]]; then
+            echo "ERROR: no parameters under ${SSM_PATH}; refusing to deploy without config." >&2
+            exit 1
+          fi
+
+          # DOTENV_KEYS tells the entrypoint which env vars go into .env.
+          DOTENV_KEYS="$(jq -r 'map(.name) | join(",")' secrets.json)"
+          echo "Config keys: ${DOTENV_KEYS}"
+
+          # 3) New revision: drop read-only fields, set image, secrets and
+          #    DOTENV_KEYS on the app container only.
+          jq --arg IMAGE "${IMAGE}" \
+             --arg CONTAINER "${ECS_CONTAINER}" \
+             --arg KEYS "${DOTENV_KEYS}" \
+             --slurpfile SEC secrets.json '
+            del(
+              .taskDefinitionArn,
+              .revision,
+              .status,
+              .requiresAttributes,
+              .compatibilities,
+              .registeredAt,
+              .registeredBy,
+              .deregisteredAt
+            )
+            | .containerDefinitions |= map(
+                if .name == $CONTAINER then
+                  .image = $IMAGE
+                  | .secrets = $SEC[0]
+                  | .environment = ((.environment // []) | map(select(.name != "DOTENV_KEYS")) + [{name: "DOTENV_KEYS", value: $KEYS}])
+                else . end
+              )
+          ' td.json > td-new.json
+
+          if [[ "$(jq --arg C "${ECS_CONTAINER}" '[.containerDefinitions[] | select(.name == $C)] | length' td-new.json)" -ne 1 ]]; then
+            echo "ERROR: container '${ECS_CONTAINER}' not found in ${CURRENT_TD_ARN}" >&2
+            exit 1
+          fi
+
+          NEW_TD_ARN="$(aws ecs register-task-definition \
+            --cli-input-json file://td-new.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)"
+
+          echo "Registered ${NEW_TD_ARN}"
+          echo "arn=${NEW_TD_ARN}" >> "$GITHUB_OUTPUT"
+
+      - name: Update ECS service
+        shell: bash
+        env:
+          TD_ARN: ${{ steps.taskdef.outputs.arn }}
+        run: |
+          aws ecs update-service \
+            --cluster "${ECS_CLUSTER}" \
+            --service "${ECS_SERVICE}" \
+            --task-definition "${TD_ARN}" \
+            --query 'service.{service:serviceName,desired:desiredCount,taskDefinition:taskDefinition}' \
+            --output table
+
+      # The circuit breaker rolls back on its own if the new tasks never get
+      # healthy; this step just makes the run fail in that case.
+      - name: Wait for service stability
+        shell: bash
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${ECS_CLUSTER}" \
+            --services "${ECS_SERVICE}"
+
+          aws ecs describe-services \
+            --cluster "${ECS_CLUSTER}" \
+            --services "${ECS_SERVICE}" \
+            --query 'services[0].{running:runningCount,desired:desiredCount,taskDefinition:taskDefinition}' \
+            --output table

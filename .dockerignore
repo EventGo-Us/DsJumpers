@@ -1,0 +1,25 @@
+# VCS / CI
+.git
+.gitattributes
+.github
+
+# Dependencies are installed from composer.lock in the build
+vendor
+
+# Secrets: never in the image. Written at runtime by the entrypoint.
+.env
+.env.*
+ajax/*.json
+
+# Apache-only config (nginx is used in the container)
+.htaccess
+**/.htaccess
+
+# Not part of the running app
+Dockerfile
+.dockerignore
+AGENTS.md
+remove
+*.pdf
+**/.DS_Store
+ajax/tmp/*

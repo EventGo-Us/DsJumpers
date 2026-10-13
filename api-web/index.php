@@ -1978,7 +1978,8 @@ function quotes($table_name,$db, $method, $id, $data){
             $quotes = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($quotes) {
                 // Convertimos el contenido a base64 antes de devolverlo
-                $quotes['Contrato'] = base64_encode($quotes['Contrato']);
+                //$quotes['Contrato'] = base64_encode($quotes['Contrato']);
+                $quotes['Contrato'] = '';
             }            
             http_response_code(200);
             echo json_encode($quotes);
@@ -2188,7 +2189,7 @@ function products($table_name,$db, $method, $id, $data){
             }               
             
             foreach ($productos as $product) {
-                $sql = "SELECT Producto_rp, Producto_r, Image, 'Nombre producto extra' as Name, '122' as Price, '0' as Quantity  FROM v_related_products WHERE Producto_rp = :idproduct ";
+                $sql = "SELECT Producto_rp, Producto_r, Image, Name, '0' as Price, '0' as Quantity  FROM v_related_products WHERE Producto_rp = :idproduct ";
                 $stmt = $db->prepare($sql);
                 $stmt->bindValue(":idproduct",$product['Id']); 
                 $stmt->execute();
@@ -4025,7 +4026,7 @@ function surfaces($table_name,$db, $method, $id, $data){
     switch ($method) {
         case 'POST': 
             // 1. Definimos el SQL como un simple string (texto)
-            $sql = "SELECT Id, Nombre FROM surfaces ";
+            $sql = "SELECT Id, Nombre, Name FROM surfaces ";
             // 2. Preparamos la consulta
             $stmt = $db->prepare($sql);
             // 3. Vinculamos el valor (asegúrate que $data->Product exista)
@@ -4418,7 +4419,12 @@ try {
             //$Nt1 =  $data->lugar->cp." ".$Distance->cost->costo_total." ".$Distance->cost->total_millas." ".$Distance->cost->taxrate;
             // Acceder al valor
             $Costo_Distancia = $Distance->cost->costo_total;
-            $TaxPc = $Distance->cost->taxrate; 
+            if ($account['ApplyTax'] == 1){
+                $TaxPc = $Distance->cost->taxrate; 
+            }
+            else{
+                $TaxPc = 0; 
+            }
             $TaxAm = 0; 
             //TOTAL DE ITEMS
             $TotalI = 0;
@@ -4501,7 +4507,7 @@ try {
             $EventName = ''; 
             $Surface = $data->lugar->superficie;
             $Delivety = $data->lugar->tipo_entrega; 
-            $Nt1 = ''; 
+            $Nt1 = $data->lugar->referencias; 
             $Nt2 = ''; 
             $Item_Totals = $TotalI; 
             $ChkDstC = 1; 

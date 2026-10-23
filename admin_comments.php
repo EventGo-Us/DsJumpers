@@ -8,6 +8,8 @@ include_once 'config/config.php';
 include_once 'config/database.php'; 
 $database = new Database();
 $db = $database->getConnection();
+$customersQuery = $db->query("SELECT id, firstname, lastname, email FROM sale_customers ORDER BY firstname, lastname");
+$saleCustomers = $customersQuery->fetchAll(PDO::FETCH_ASSOC);
 
 $Idioma = $_SESSION['Idioma'];
 // Cambiamos el programa a 'comments' en las traducciones para que cargue tus textos personalizados
@@ -58,8 +60,8 @@ include_once 'head.php';
 <div class="container pb-5">
     <div class="sticky-search">
         <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card shadow-sm">
+            <div class="col-md-8 d-flex gap-2">
+                <div class="card shadow-sm flex-grow-1">
                     <div class="card-body p-2">
                         <div class="input-group">
                             <span class="input-group-text border-0 bg-transparent"><i class="bi bi-search text-primary"></i></span>
@@ -68,6 +70,9 @@ include_once 'head.php';
                         </div>
                     </div>
                 </div>
+                <button type="button" class="btn btn-primary text-nowrap" id="btnAddComment">
+                    <i class="bi bi-plus-lg"></i> <?php echo $Idioma === 'en' ? 'Add comment' : 'Agregar comentario'; ?>
+                </button>
             </div>
         </div>
     </div>
@@ -98,7 +103,48 @@ include_once 'head.php';
     </div>
 </div>
 
-<!-- MODAL PARA CAMBIAR ESTATUS Y MODERAR COMENTARIO -->
+<!-- Modal para agregar un comentario vinculado a un cliente de ventas -->
+<div class="modal fade" id="addCommentModal" tabindex="-1" aria-labelledby="addCommentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addCommentModalLabel"><?php echo $Idioma === 'en' ? 'Add comment' : 'Agregar comentario'; ?></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="newCustomerId" class="form-label"><?php echo $Idioma === 'en' ? 'Customer' : 'Cliente'; ?></label>
+          <select id="newCustomerId" class="form-select" required>
+            <option value=""><?php echo $Idioma === 'en' ? 'Select a customer' : 'Selecciona un cliente'; ?></option>
+            <?php foreach ($saleCustomers as $customer): ?>
+              <option value="<?php echo (int) $customer['id']; ?>">
+                <?php echo htmlspecialchars(trim($customer['firstname'] . ' ' . $customer['lastname']) . ($customer['email'] ? ' - ' . $customer['email'] : ''), ENT_QUOTES, 'UTF-8'); ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="newReviewText" class="form-label"><?php echo $Idioma === 'en' ? 'Comment' : 'Comentario'; ?></label>
+          <textarea id="newReviewText" class="form-control" rows="4" maxlength="2000" required></textarea>
+        </div>
+        <div class="mb-3">
+          <label for="newReviewRating" class="form-label"><?php echo $Idioma === 'en' ? 'Rating' : 'Calificación'; ?></label>
+          <select id="newReviewRating" class="form-select">
+            <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?php echo $Idioma === 'en' ? 'Cancel' : 'Cancelar'; ?></button>
+        <button type="button" class="btn btn-primary" id="btnCreateComment" <?php echo empty($saleCustomers) ? 'disabled' : ''; ?>>
+          <?php echo $Idioma === 'en' ? 'Add comment' : 'Agregar comentario'; ?>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para editar un comentario -->
 <div class="modal fade" id="commentModal" tabindex="-1" aria-labelledby="commentModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -109,13 +155,20 @@ include_once 'head.php';
       <div class="modal-body">
          <input type="hidden" id="modalReviewId">
          <div class="mb-3">
-             <strong class="d-block text-muted small"><?php echo Trd(3) /* "Cliente" */?></strong>
-             <div id="modalAuthorName" class="fw-bold"></div>
-             <div id="modalAuthorMeta" class="text-muted small italic"></div>
+             <label for="modalAuthorName" class="form-label text-muted small"><?php echo Trd(3) /* "Cliente" */?></label>
+             <input id="modalAuthorName" class="form-control fw-bold" maxlength="255">
+             <label for="modalAuthorMeta" class="form-label text-muted small mt-2"><?php echo $Idioma === 'en' ? 'Customer details' : 'Datos del cliente'; ?></label>
+             <input id="modalAuthorMeta" class="form-control" maxlength="255">
          </div>
          <div class="mb-3">
-             <strong class="d-block text-muted small"><?php echo Trd(4) /* "Opinión" */?></strong>
-             <p id="modalReviewText" class="bg-light p-3 rounded border text-dark italic" style="font-size: 0.95rem;"></p>
+             <label for="modalReviewText" class="form-label text-muted small"><?php echo Trd(4) /* "Opinión" */?></label>
+             <textarea id="modalReviewText" class="form-control" rows="4" maxlength="2000"></textarea>
+         </div>
+         <div class="mb-3">
+             <label for="modalRatingSelect" class="form-label fw-semibold small"><?php echo Trd(5) /* "Calificación" */?></label>
+             <select id="modalRatingSelect" class="form-select">
+                 <option value="5">5</option><option value="4">4</option><option value="3">3</option><option value="2">2</option><option value="1">1</option>
+             </select>
          </div>
          
          <hr>
@@ -148,11 +201,18 @@ include_once 'head.php';
     ?>
 
 $(document).ready(function() {
+    const requestFailedMessage = <?php echo json_encode($Idioma === 'en' ? 'The request could not be completed. Please try again.' : 'No se pudo completar la solicitud. Inténtalo de nuevo.'); ?>;
     let currentPage = 1;
     let isFetching = false;
     let noMoreData = false;
     let timer;
     let loadedComments = {}; // Almacén en memoria de los comentarios cargados para el modal
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function(character) {
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character];
+        });
+    }
 
     // Función Principal con AJAX (Consume tu API apuntando al nuevo endpoint de comentarios)
     function fetchComments(reset = false) {
@@ -189,8 +249,7 @@ $(document).ready(function() {
                 }
             },
             error: function(xhr, status, error) {
-                //console.error("Error en la petición:", error);
-                //alert("<?php echo Trd(13) /* "Error al conectar con la API" */?>");
+                alert(requestFailedMessage);
             },
             complete: function() {
                 isFetching = false;
@@ -206,30 +265,33 @@ $(document).ready(function() {
             // Guardamos en el objeto temporal para el acceso rápido del modal
             loadedComments[item.id] = item;
 
-            const statusClass = "status-" + item.status.toLowerCase();
-            const badgeClass = getBadgeColor(item.status);
-            const stars = '<span class="stars-gold">' + '★'.repeat(item.rating) + '</span>' + '☆'.repeat(5 - item.rating);
+            const status = String(item.status || '').toLowerCase();
+            const rating = Math.max(0, Math.min(5, parseInt(item.rating, 10) || 0));
+            const statusClass = "status-" + escapeHtml(status);
+            const badgeClass = getBadgeColor(status);
+            const stars = '<span class="stars-gold">' + '★'.repeat(rating) + '</span>' + '☆'.repeat(5 - rating);
             
             // Recortamos el texto para que no rompa la tabla si es muy largo
-            const shortText = item.review_text.length > 60 ? item.review_text.substring(0, 60) + '...' : item.review_text;
+            const reviewText = String(item.review_text || '');
+            const shortText = reviewText.length > 60 ? reviewText.substring(0, 60) + '...' : reviewText;
             const featuredBadge = item.is_featured == 1 ? '<span class="badge bg-primary">Bento Box</span>' : '<span class="text-muted small">-</span>';
 
             rows += `
-                <tr class="${statusClass} clickable-row" data-id="${item.id}" style="cursor: pointer;">
+                <tr class="${statusClass} clickable-row" data-id="${escapeHtml(item.id)}" style="cursor: pointer;">
                     <td class="ps-4">
-                        <div class="fw-semibold">#${item.id}</div>
-                        <div class="small text-muted">${item.created_at}</div>
+                        <div class="fw-semibold">#${escapeHtml(item.id)}</div>
+                        <div class="small text-muted">${escapeHtml(item.created_at || '')}</div>
                     </td>
                     <td>
-                        <div class="fw-bold text-dark">${item.author_name}</div>
-                        <div class="small text-muted italic">${item.author_meta}</div>
+                        <div class="fw-bold text-dark">${escapeHtml(item.author_name || '')}</div>
+                        <div class="small text-muted italic">${escapeHtml(item.author_meta || '')}</div>
                     </td>
                     <td>
-                        <div class="small text-secondary italic">"${shortText}"</div>
+                        <div class="small text-secondary italic">"${escapeHtml(shortText)}"</div>
                     </td>
                     <td><div class="small">${stars}</div></td>
                     <td class="text-center">${featuredBadge}</td>
-                    <td class="text-end pe-4"><span class="badge rounded-pill ${badgeClass}">${item.status.toUpperCase()}</span></td>
+                    <td class="text-end pe-4"><span class="badge rounded-pill ${badgeClass}">${escapeHtml(status.toUpperCase())}</span></td>
                 </tr>
             `;
         });
@@ -266,9 +328,10 @@ $(document).ready(function() {
         
         if (item) {
             $('#modalReviewId').val(item.id);
-            $('#modalAuthorName').text(item.author_name);
-            $('#modalAuthorMeta').text(item.author_meta);
-            $('#modalReviewText').text(item.review_text);
+            $('#modalAuthorName').val(item.author_name || '');
+            $('#modalAuthorMeta').val(item.author_meta || '');
+            $('#modalReviewText').val(item.review_text || '');
+            $('#modalRatingSelect').val(item.rating);
             $('#modalStatusSelect').val(item.status);
             $('#modalFeaturedSwitch').prop('checked', item.is_featured == 1);
             
@@ -281,6 +344,15 @@ $(document).ready(function() {
         const id = $('#modalReviewId').val();
         const status = $('#modalStatusSelect').val();
         const is_featured = $('#modalFeaturedSwitch').is(':checked') ? 1 : 0;
+        const author_name = $('#modalAuthorName').val().trim();
+        const author_meta = $('#modalAuthorMeta').val().trim();
+        const review_text = $('#modalReviewText').val().trim();
+        const rating = parseInt($('#modalRatingSelect').val(), 10);
+
+        if (!author_name || !review_text || review_text.length > 2000) {
+            alert(<?php echo json_encode($Idioma === 'en' ? 'Customer name and a comment of up to 2,000 characters are required.' : 'El nombre del cliente y un comentario de hasta 2,000 caracteres son obligatorios.'); ?>);
+            return;
+        }
 
         $.ajax({
             url: API_BASE_URL + 'comments_admin_update', // Endpoint de guardado
@@ -289,6 +361,10 @@ $(document).ready(function() {
             headers: { 'Authorization': 'Bearer ' + TOKEN },
             data: JSON.stringify({
                 id: id,
+                author_name: author_name,
+                author_meta: author_meta,
+                review_text: review_text,
+                rating: rating,
                 status: status,
                 is_featured: is_featured
             }),
@@ -298,7 +374,43 @@ $(document).ready(function() {
                 fetchComments(true); 
             },
             error: function(xhr) {
-                alert("No se pudieron guardar los cambios de moderación.");
+                alert(requestFailedMessage);
+            }
+        });
+    });
+
+    $('#btnAddComment').on('click', function() {
+        $('#newCustomerId').val('');
+        $('#newReviewText').val('');
+        $('#newReviewRating').val('5');
+        $('#addCommentModal').modal('show');
+    });
+
+    $('#btnCreateComment').on('click', function() {
+        const customer_id = parseInt($('#newCustomerId').val(), 10);
+        const review_text = $('#newReviewText').val().trim();
+        const rating = parseInt($('#newReviewRating').val(), 10);
+        if (!customer_id || !review_text || review_text.length > 2000) {
+            alert(<?php echo json_encode($Idioma === 'en' ? 'Select a customer and enter a comment of up to 2,000 characters.' : 'Selecciona un cliente y escribe un comentario de hasta 2,000 caracteres.'); ?>);
+            return;
+        }
+
+        const button = $(this).prop('disabled', true);
+        $.ajax({
+            url: API_BASE_URL + 'comments_admin',
+            type: 'POST',
+            contentType: 'application/json',
+            headers: { 'Authorization': 'Bearer ' + TOKEN },
+            data: JSON.stringify({customer_id: customer_id, review_text: review_text, rating: rating}),
+            success: function() {
+                $('#addCommentModal').modal('hide');
+                fetchComments(true);
+            },
+            error: function() {
+                alert(requestFailedMessage);
+            },
+            complete: function() {
+                button.prop('disabled', false);
             }
         });
     });

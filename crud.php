@@ -28,6 +28,28 @@ session_start();
         global $Traducciones;
         return $Traducciones[$Id];
     }
+
+$Idioma = $_SESSION['Idioma'] ?? 'es';
+$isEn = (strtolower(substr(trim($Idioma), 0, 2)) === 'en');
+
+$t = [
+    'page_title' => $isEn ? 'Recursive pricing function' : 'Función recursiva de precios',
+    'funcion_precios' => $isEn ? 'Pricing function' : 'Función de precios',
+    'funcion_precios_edit' => $isEn ? 'Pricing function' : 'Función de precios',
+    'funcion_precios_third' => $isEn ? 'Pricing function' : 'Función de precios',
+    'limpiar' => $isEn ? 'Clear' : 'Limpiar',
+    'precio_vs_tiempo' => $isEn ? 'Price vs Time' : 'Precio vs Tiempo',
+    'precio_vs_tiempo_edit' => $isEn ? 'Price vs Time ' : 'Precio vs Tiempo ',
+    'precio_vs_tiempo_third' => $isEn ? 'Price vs Time ' : 'Precio vs Tiempo ',
+    'horas' => $isEn ? 'Hours' : 'Horas',
+    'dias' => $isEn ? 'Days' : 'Días',
+    'semanas' => $isEn ? 'Weeks' : 'Semanas',
+    'json_precio' => $isEn ? 'Price JSON' : 'JSON del precio',
+    'json_precio_edit' => $isEn ? 'Price JSON ' : 'JSON del precio ',
+    'json_precio_third' => $isEn ? 'Price JSON' : 'JSON del precio',
+    'aplicar_json' => $isEn ? 'Apply JSON' : 'Aplicar JSON',
+];
+
     include_once 'head.php';
 ?>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
@@ -37,7 +59,7 @@ session_start();
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>     
 <?php
     if ($IdTabla == 'item_prices' OR $IdTabla == 'products'){
-    echo '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
+    echo '<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>';
     $query = "select Traduccion FROM programas_traduccion where Programa = 'prices' AND Idioma = ? ORDER BY Id";            
     $stmt = $db->prepare($query);
     $stmt->bindValue(1, $Idioma);
@@ -54,40 +76,7 @@ session_start();
         echo isset($Traducciones2[$Id]) ? $Traducciones2[$Id] : "Trd_2[$Id]";
     }    
 ?>
-    <style>
-        h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        #contenedor-funciones { margin-top: 20px; }
-        #edit_contenedor-funciones { margin-top: 20px; }
-        .linea-config { 
-            background: #fff; margin-bottom: 15px; padding: 15px; border-radius: 8px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid #3498db;
-            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-            animation: slideIn 0.3s ease-out;
-        }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        select, input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; outline: none; }
-        input[type="number"] { width: 80px; }
-        textarea { 
-            width: 100%; margin-top: 20px; font-family: 'Courier New', monospace; 
-            background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 5px; border: none; 
-        }
-        .etiqueta-f { font-weight: bold; color: #3498db; min-width: 30px; }
-        
-        /* Estilos Proyección */
-        .seccion-proyeccion { margin-top: 30px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .tabla-costos { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        .tabla-costos th, .tabla-costos td { border: 1px solid #eee; padding: 10px; text-align: center; }
-        .tabla-costos th { background: #3498db; color: white; }
-        .fila-highlight { background-color: #ebf5fb; font-weight: bold; }
 
-        /* Estilos para la gráfica */
-        .grafica-container { 
-            width: 100%; 
-            max-width: 800px; 
-            margin: 0 auto 20px auto; 
-            height: 350px; 
-        }
-    </style>
 <?php
     }
 ?>
@@ -374,39 +363,41 @@ div[id^="dropzone_"]:hover {
 
                     </div>
 
+  <div class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h4 mb-0"><?= $t['funcion_precios_third'] ?></h1>
+      <button type="button" id="third_btnLimpiar" class="btn btn-outline-danger btn-sm"><?= $t['limpiar'] ?></button>
+    </div>
+    <div id="third_casos" class="vstack gap-2 mb-4"></div>
+    <div class="row g-3 mb-3" id = "edit_contenedor-funciones">
+      <div class="col-lg-12">
+        <div class="card"><div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <h2 class="h6 mb-0"><?= $t['precio_vs_tiempo_third'] ?></h2>
+            <select id="third_eje" class="form-select form-select-sm w-auto">
+              <option value="1"><?= $t['horas'] ?></option>
+              <option value="24"><?= $t['dias'] ?></option>
+              <option value="168"><?= $t['semanas'] ?></option>
+            </select>
+          </div>
+          <div style="height:320px"><canvas id="third_grafica"></canvas></div>
+        </div></div>
+      </div>
+    </div>
+    <div class="row g-3" style="display: none;">
+      <div class="col-lg-12">
+        <div class="card h-100"><div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between mb-2">
+            <h2 class="h6 mb-0"><?= $t['json_precio_third'] ?></h2>
+            <button type="button" id="third_btnAplicar" class="btn btn-sm btn-outline-primary"><?= $t['aplicar_json'] ?></button>
+          </div>
+          <textarea id="edit_JsonPrice" name="JsonPrice" class="form-control font-monospace flex-grow-1" rows="10" spellcheck="false"></textarea>
+          <div id="third_jsonErr" class="text-danger small mt-1"></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
 
-
-                    <div id="edit_contenedor-funciones">
-                        
-                    </div>
-
-                    <div >
-
-                            <button class="btn btn-warning fw-semibold px-4 rounded-3 shadow-sm" onclick=" $('#edit_contenedor-funciones').empty();configTotal = [];ejecutarFuncion1();if (myChart) {myChart.destroy()};$('#edit_ItemPrice').closest('form')[0].reset();$('#edit_producto_origen_pl').closest('form')[0].reset();$('#edit_new').val(2);$('#edit_price_name').val($('#edit_Name').val())" type="button">
-                                <i class="fa-solid fa-floppy-disk me-1"></i> Clear inputs
-                            </button>                    
-                    </div>                    
-
-                    <input type="hidden" id ="edit_JsonPrice" name ="edit_JsonPrice">
-
-                    <div class="container">
-                        <div class="seccion-proyeccion">
-                            <h3><?php Trd_2(3)?></h3>
-
-                            <div class="grafica-container">
-                                <canvas id="costosChart"></canvas>
-                            </div>        
-                        </div>
-                    </div>                    
-<!--
-                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-
-                        <button class="btn btn-primary fw-semibold px-4 rounded-3 shadow-sm" type="submit">
-                            <i class="fa-solid fa-floppy-disk me-1"></i><?php echo Trd(7)?>
-                        </button>                    
-
-                    </div>
--->
                 </form>            
             <?php
             echo "</div>";
@@ -449,28 +440,8 @@ div[id^="dropzone_"]:hover {
                 add_listado($Tabla,'collapse');                
                 add_form($Tabla,$Idioma,'D');
                 edit_form($Tabla,$Idioma,'D');
-                
-                $Tabla2 = 'products_images';
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#listado_' . $Tabla2 . '" 
-                        aria-expanded="false" 
-                        aria-controls="listado_' . $Tabla2 . '">';
-                echo Trd(31);
-                echo '</h4>';
-
-                $Tabla3 = 'products_images_sale';
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#listado_' . $Tabla3 . '"
-                    aria-expanded="false"
-                    aria-controls="listado_' . $Tabla3 . '">';
-                echo 'Imágenes para ventas';
-                echo '</h4>';
-                
-                
 ?>
-    <style>
+ <style>
         .gallery-item {
             position: relative;
             cursor: grab;
@@ -614,6 +585,17 @@ div[id^="dropzone_"]:hover {
     z-index: 3;
 }
     </style>
+
+<?php                
+                $Tabla2 = 'products_images';
+                echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
+                        data-bs-toggle="collapse" 
+                        data-bs-target="#listado_' . $Tabla2 . '" 
+                        aria-expanded="false" 
+                        aria-controls="listado_' . $Tabla2 . '">';
+                echo Trd(31);
+                echo '</h4>';
+?>
 <div class=" collapse container py-4" id = "listado_<?= $Tabla2 ?>">
     <h3 class="mb-4"><?= Trd(44) ?></h3>
 
@@ -638,9 +620,23 @@ div[id^="dropzone_"]:hover {
     </div>
 
 </div>
+<?php
+                $Tabla3 = 'products_images_sale';
+                echo '<h4 class="mb-4 btn-toggle-custom fs-5"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#listado_' . $Tabla3 . '"
+                    aria-expanded="false"
+                    aria-controls="listado_' . $Tabla3 . '">';
+                echo Trd(74);
+                echo '</h4>';
+                
+                
+?>
+   
+
 
 <div class="collapse container py-4" id="listado_<?= $Tabla3 ?>">
-    <h3 class="mb-4">Imágenes para ventas</h3>
+    <h3 class="mb-4"><?= Trd(74) ?></h3>
 
     <div class="drop-zone mb-3" id="dropZoneSale">
         <i class="bi bi-cloud-upload fs-1"></i>
@@ -936,9 +932,11 @@ div[id^="dropzone_"]:hover {
         elseif ($IdTabla == 'item_prices'){
             add_listado($IdTabla);
             add_form($IdTabla,$Idioma,'M',true);
+
             edit_form($IdTabla,$Idioma,'M',true);
+            
             delete_form($IdTabla);
-            ?>
+            /*
             <div class="container" id="proyeccion_item_prices" style="display: none;">
                 <div class="seccion-proyeccion">
                     <h3><?php Trd_2(3)?></h3>
@@ -947,7 +945,12 @@ div[id^="dropzone_"]:hover {
                         <canvas id="costosChart"></canvas>
                     </div>        
                 </div>
-            </div>
+            </div>            
+            */
+            ?>
+
+
+
             <?php
         }        
         elseif ($IdTabla == 'customers'){
@@ -1724,7 +1727,24 @@ function listado(IdTabla, loadMore = false) {
     }    
 
 var camposFiltrados = Object.keys(estado.columnFilters).join(',');
-
+<?php if ($IdTabla == 'inventory_stock'){?>
+ if ($('#SalesI').is(':checked')) {
+    IdSelected = 'SalesI';
+ }else if ($('#RentI').is(':checked')) {
+    IdSelected = 'RentI';
+ }else if ($('#AllI').is(':checked')) {
+    IdSelected = 'AllI';
+ }   
+var queryUrl = API_BASE_URL + IdTabla + '/' +
+    '?page=' + estado.currentPage + 
+    '&limit=' + estado.limit + 
+    '&like=' + $('#Search_' + IdTabla).val() + 
+    '&lang=<?php echo $Idioma?>' +
+    '&sort_field=' + estado.sortField + 
+    '&sort_order=' + estado.sortOrder + 
+    '&sort_fields=' + encodeURIComponent(camposFiltrados) +
+    '&inventory_id=' + IdSelected;
+<?php } else {?>
 var queryUrl = API_BASE_URL + IdTabla + '/' +
     '?page=' + estado.currentPage + 
     '&limit=' + estado.limit + 
@@ -1733,7 +1753,7 @@ var queryUrl = API_BASE_URL + IdTabla + '/' +
     '&sort_field=' + estado.sortField + 
     '&sort_order=' + estado.sortOrder + 
     '&sort_fields=' + encodeURIComponent(camposFiltrados);
-    
+<?php } ?>
     $.ajax({
         url: queryUrl,
         type: 'GET',
@@ -1865,8 +1885,12 @@ function getRecordData(Id,IdTabla) {
                             //alert(valor)
                             $('#edit_'+clave).summernote('code',valor);
                         }
-                        else
+                        else{
+                            //alert(clave)
+                            //alert(valor)
                             input.value = valor || '';
+                        }
+                            
                     }
                     else if (input.type === "hidden") {
                         
@@ -1936,16 +1960,22 @@ function getRecordData(Id,IdTabla) {
             }            
             else if (IdTabla == 'price_lists'){
                 listado('detail_price_lists');
-            }else if (IdTabla == 'item_prices' || IdTabla == 'products_item_price'){
-                cargar();
-                if (IdTabla == 'products_item_price'){
-                    //const contenedor = document.getElementById('edit_contenedor-funciones');
-                    //const inputs = contenedor.querySelectorAll('input');
-                    //inputs.forEach(input => {
-                    //    input.disabled = true;
-                    //});
-                    $('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);
-                }
+            }else if (IdTabla == 'item_prices' ){
+
+                $('#edit_btnAplicar').click();                
+
+            }else if ( IdTabla == 'products_item_price'){
+                //cargar();
+                //alert(0)   
+                //alert($('#edit_JsonPrice').val())            
+                $('#third_btnAplicar').click();  
+                //const contenedor = document.getElementById('edit_contenedor-funciones');
+                //const inputs = contenedor.querySelectorAll('input');
+                //inputs.forEach(input => {
+                //    input.disabled = true;
+                //});
+                //$('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);
+                
             }
             <?php 
                 //if ($IdTabla == 'products'){
@@ -1954,7 +1984,7 @@ function getRecordData(Id,IdTabla) {
             ?>
         },
         error: function(xhr, status, error) {
-            
+            /*
             if (IdTabla == 'products_item_price'){
                 //ejecutarFuncion1(); 
                 $('#edit_contenedor-funciones').empty();
@@ -1966,6 +1996,7 @@ function getRecordData(Id,IdTabla) {
                 $('#edit_new').val(2);
                 $('#edit_price_name').val($('#edit_Name').val());
             }
+            */
             if (xhr.status === 401) {
                 // console.error('Acceso denegado. Token expirado o inválido.');
                 // Aquí puedes redirigir al login o limpiar el token
@@ -2594,7 +2625,7 @@ $(".decimals").keypress(function (e) {
         const myChoicesInstances = {};
 
         // Seleccionamos todos los elementos con la clase .selectpicker
-        const pickers = document.querySelectorAll('.selectpicker');
+        const pickers = document.querySelectorAll('.selectpicker, select[data-tipo="complete"]');
 
         pickers.forEach((picker) => {
             // 1. Inicializamos Choices para cada picker individualmente
@@ -2650,416 +2681,479 @@ $(".decimals").keypress(function (e) {
 
         }
 <?php
-
-
-
-
-
 //ESTE BLOQUE ES PARA PINTAR EL PROCESO DE PRECIOS !!
-
-
-
 if ($IdTabla == 'item_prices' OR $IdTabla == 'products'){
+//if ($IdTabla == 'item_prices' ){
+$showItemPrices = isset($IdTabla) && $IdTabla === 'item_prices';
+$showProductPrice = isset($IdTabla) && $IdTabla === 'products';
 ?>
 
-// Diccionario de traducciones para ser usado en JS
-//readonly style="display: none"
-const txt = {
-    lblCostoAcumulado: "<?php Trd_2(4)?>",
-    lblEjeX: "<?php Trd_2(5)?>",
-    lblEjeY: "<?php Trd_2(6)?>",
-    f1Precio: "<?php Trd_2(7)?>",
-    selDefault: "<?php Trd_2(8)?>",
-    optIndefinido: "<?php Trd_2(9)?>",
-    optHasta: "<?php Trd_2(10)?>",
-    optCada: "<?php Trd_2(11)?>",
-    f2Cargo: "<?php Trd_2(12)?>",
-    f2PorCada: "<?php Trd_2(13)?>",
-    f3Despues: "<?php Trd_2(14)?>",
-    f3Precio: "<?php Trd_2(15)?>",
-    placeholderCant: "<?php Trd_2(16)?>"
-};
 
-let configTotal = [];
-let myChart; 
+const I18N = <?= json_encode([
+    'units' => [
+        'dia' => [$isEn ? 'day' : 'día', 24],
+        'hora' => [$isEn ? 'hour' : 'hora', 1],
+        'semana' => [$isEn ? 'week' : 'semana', 168],
+        'dias' => [$isEn ? 'days' : 'días', 24],
+        'horas' => [$isEn ? 'hours' : 'horas', 1],
+        'semanas' => [$isEn ? 'weeks' : 'semanas', 168],
+    ],
+    'unit_placeholder' => $isEn ? 'Unit…' : 'Unidad…',
+    'select_placeholder' => $isEn ? 'Select…' : 'Selecciona…',
+    'qty_placeholder' => $isEn ? 'Qty.' : 'Cant.',
+    'price_placeholder' => $isEn ? 'Price' : 'Precio',
+    'case_badge' => $isEn ? 'Case' : 'Caso',
+    'price_is' => $isEn ? 'The price is:' : 'El precio es:',
+    'charge_prefix' => $isEn ? 'Charge' : 'Cargo',
+    'per_each' => $isEn ? 'per each' : 'por cada',
+    'after' => $isEn ? 'After' : 'Después de',
+    'price_becomes' => $isEn ? 'the price is' : 'el precio es de',
+    'modos' => [
+        'indefinido' => $isEn ? 'Indefinite' : 'Indefinido',
+        'hasta' => $isEn ? 'Until' : 'Hasta',
+        'cada' => $isEn ? 'Every' : 'Cada',
+    ],
+    'err_greater' => $isEn ? 'Must be greater than ' : 'Debe ser mayor a ',
+    'chart_price' => $isEn ? 'Price' : 'Precio',
+    'chart_time_title' => $isEn ? 'Time' : 'Tiempo',
+    'chart_price_title' => $isEn ? 'Price ($)' : 'Precio ($)',
+    'err_missing_pasos' => $isEn ? 'Missing "pasos" array' : 'Falta el arreglo "pasos"',
+    'err_invalid_json' => $isEn ? 'Invalid JSON: ' : 'JSON inválido: ',
+], JSON_UNESCAPED_UNICODE) ?>;
+const SHOW_ITEM_PRICES = <?= json_encode($showItemPrices) ?>;
+const SHOW_PRODUCT_PRICE = <?= json_encode($showProductPrice) ?>;
 
-$(document).ready(function() {
-    ejecutarFuncion1();
+const U = I18N.units;
+const ALL = ['dia','hora','semana','dias','horas','semanas'], PL = ['dias','horas','semanas'];
+const toH = (c,u) => c * U[u][1], lab = (c,u) => `${c} ${U[u][0]}`, fmt = h => `${+h.toFixed(2)} h`;
+
+// ==========================================
+// 1. FUNCIONALIDAD ORIGINAL
+// ==========================================
+let steps=[], stash={i:-1,tail:[]}, chart;
+
+/* Convierte los pasos en segmentos de tiempo: {S inicio, E fin, P precio, N periodo (si es "por cada")} */
+function segs(arr){
+  const out=[]; let S=0;
+  arr.forEach(s=>{
+    const E=s.tipo==='hasta'?toH(s.cantidad,s.unidad):Infinity;
+    if(s.caso===2){out.push({S,E,P:s.precio,N:toH(s.cada.cantidad,s.cada.unidad)});S=E;}
+    else if(s.tipo!=='cada'){out.push({S,E,P:s.precio});S=E;}
+  });
+  return {out,S};
+}
+function price(sg,t){
+  let a=0;
+  for(const g of sg){
+    if(t<=g.S)break;
+    const tt=Math.min(t,g.E);
+    a+=g.N?g.P*Math.ceil((tt-g.S)/g.N-1e-9):g.P;
+  }
+  return a;
+}
+
+function sync(row,n){
+  const m=row.find('.m').val(), show=m&&m!=='indefinido';
+  row.find('.q,.u').toggleClass('d-none',!show);
+  const list=(n===1&&m==='hasta')?PL:ALL, u=row.find('.u'), cur=u.val();
+  u.html('<option value="">' + I18N.unit_placeholder + '</option>'+list.map(k=>`<option value="${k}">${U[k][0]}</option>`).join(''))
+   .val(list.includes(cur)?cur:'');
+}
+
+function read(row,n,p){
+  const s={caso:n}, m=row.find('.m').val();
+  if(n===2){s.precio=p.precio;s.cada={cantidad:p.cantidad,unidad:p.unidad};}
+  else{
+    const pr=row.find('.pr').val(); if(pr===''||+pr<0)return null;
+    s.precio=+pr; if(n===3)s.despues_de={cantidad:p.cantidad,unidad:p.unidad};
+  }
+  if(!m)return null; s.tipo=m;
+  if(m!=='indefinido'){
+    const q=+row.find('.q').val(), u=row.find('.u').val();
+    if(!(q>0)||!u)return null; s.cantidad=q; s.unidad=u;
+  }
+  return s;
+}
+
+/* Valida el caso actual y, si está completo, detona (recursivamente) el siguiente */
+function evaluate(i,row,n,p,over){
+  let s=read(row,n,p), err='';
+  if(s&&s.tipo==='hasta'){
+    const S=segs(steps.slice(0,i)).S;
+    if(toH(s.cantidad,s.unidad)<=S){err=I18N.err_greater+fmt(S);s=null;}
+  }
+  row.find('.err').text(err);
+  if(over===undefined&&s&&steps[i]&&JSON.stringify(s)===JSON.stringify(steps[i]))return;
+  const tail=over!==undefined?over:(steps.length>i+1?steps.slice(i+1):(stash.i===i?stash.tail:[]));
+  if(over===undefined&&steps.length>i+1)stash={i,tail};
+  row.nextAll().remove(); steps.length=i;
+  if(s){steps[i]=s; if(s.tipo!=='indefinido')buildCase(i+1,tail);}
+  if(over===undefined)refresh();
+}
+
+function buildCase(i,tail){
+  tail=tail||[];
+  const p=steps[i-1], n=i===0?1:(p.tipo==='cada'?2:3);
+  let d=tail[0]; if(d&&d.caso!==n){d=null;tail=[];}
+  const price=`<div class="input-group input-group-sm w-auto"><span class="input-group-text">$</span><input type="number" min="0" step="any" class="form-control pr" style="width:100px" placeholder="${I18N.price_placeholder}"></div>`;
+  const pre=n===1?`<b>${I18N.price_is}</b>${price}`
+    :n===2?`<span>${I18N.charge_prefix} <b>$${p.precio}</b> ${I18N.per_each} <b>${lab(p.cantidad,p.unidad)}</b></span>`
+    :`<span>${I18N.after} <b>${lab(p.cantidad,p.unidad)}</b> ${I18N.price_becomes}</span>${price}`;
+  const modos=(n===2?['indefinido','hasta']:['indefinido','hasta','cada'])
+    .map(m=>`<option value="${m}">${I18N.modos[m] || (m[0].toUpperCase()+m.slice(1))}</option>`).join('');
+  const row=$(`<div class="caso card card-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2">
+    <span class="badge text-bg-primary">${I18N.case_badge} ${n}</span>${pre}
+    <select class="form-select form-select-sm w-auto m"><option value="">${I18N.select_placeholder}</option>${modos}</select>
+    <input type="number" min="0" step="any" class="form-control form-control-sm q d-none" style="width:90px" placeholder="${I18N.qty_placeholder}">
+    <select class="form-select form-select-sm w-auto u d-none"></select>
+    <span class="text-danger small err"></span></div></div>`).appendTo('#casos');
+  sync(row,n);
+  const go=()=>{sync(row,n);evaluate(i,row,n,p);};
+  let t;
+  row.on('change','select',go).on('input','input',()=>{clearTimeout(t);t=setTimeout(go,500);});
+  if(d){
+    if(n!==2)row.find('.pr').val(d.precio);
+    row.find('.m').val(d.tipo); sync(row,n);
+    row.find('.q').val(d.cantidad||''); row.find('.u').val(d.unidad||'');
+    evaluate(i,row,n,p,tail.slice(1));
+  }
+}
+
+function refresh(){
+  $('#JsonPrice').val(JSON.stringify({pasos:steps},null,2));
+  const {out}=segs(steps), k=+$('#eje').val(), ds=chart.data.datasets[0];
+  chart.options.scales.x.title.text=I18N.chart_time_title + ' ('+$('#eje option:selected').text().toLowerCase()+')';
+  if(!out.length){ds.data=[];chart.update();return;}
+  let base=0; out.forEach(g=>{base=Math.max(base,g.S,isFinite(g.E)?g.E:0);});
+  let H=0;
+  out.forEach(g=>{
+    if(isFinite(g.E))H=Math.max(H,g.E*1.2);
+    else H=Math.max(H,g.N?g.S+6*g.N:Math.max(base*1.5,24));
+  });
+  const ev=new Set([0,H]);
+  out.forEach(g=>{
+    if(g.S<=H)ev.add(g.S); if(isFinite(g.E)&&g.E<=H)ev.add(g.E);
+    if(g.N)for(let j=1,x=g.S+g.N;x<H&&x<=g.E&&j<1500;j++,x=g.S+j*g.N)ev.add(x);
+  });
+  const eps=H/5000, pts=[];
+  [...ev].sort((a,b)=>a-b).forEach(e=>{
+    pts.push({x:e/k,y:price(out,e)});
+    if(e<H)pts.push({x:(e+eps)/k,y:price(out,e+eps)});
+  });
+  ds.data=pts; chart.update();
+}
+
+function reset(tail){
+  $('#casos').empty(); steps=[]; stash={i:-1,tail:[]};
+  buildCase(0,tail); refresh();
+}
+
+// ==========================================
+// 2. FUNCIONALIDAD DUPLICADA (EDIT_)
+// ==========================================
+let edit_steps=[], edit_stash={i:-1,tail:[]}, edit_chart;
+
+function edit_segs(arr){
+  const out=[]; let S=0;
+  arr.forEach(s=>{
+    const E=s.tipo==='hasta'?toH(s.cantidad,s.unidad):Infinity;
+    if(s.caso===2){out.push({S,E,P:s.precio,N:toH(s.cada.cantidad,s.cada.unidad)});S=E;}
+    else if(s.tipo!=='cada'){out.push({S,E,P:s.precio});S=E;}
+  });
+  return {out,S};
+}
+
+function edit_price(sg,t){
+  let a=0;
+  for(const g of sg){
+    if(t<=g.S)break;
+    const tt=Math.min(t,g.E);
+    a+=g.N?g.P*Math.ceil((tt-g.S)/g.N-1e-9):g.P;
+  }
+  return a;
+}
+
+function edit_sync(row,n){
+  const m=row.find('.edit_m, .m').val(), show=m&&m!=='indefinido';
+  row.find('.edit_q, .q, .edit_u, .u').toggleClass('d-none',!show);
+  const list=(n===1&&m==='hasta')?PL:ALL, u=row.find('.edit_u, .u'), cur=u.val();
+  u.html('<option value="">' + I18N.unit_placeholder + '</option>'+list.map(k=>`<option value="${k}">${U[k][0]}</option>`).join(''))
+   .val(list.includes(cur)?cur:'');
+}
+
+function edit_read(row,n,p){
+  const s={caso:n}, m=row.find('.edit_m, .m').val();
+  if(n===2){s.precio=p.precio;s.cada={cantidad:p.cantidad,unidad:p.unidad};}
+  else{
+    const pr=row.find('.edit_pr, .pr').val(); if(pr===''||+pr<0)return null;
+    s.precio=+pr; if(n===3)s.despues_de={cantidad:p.cantidad,unidad:p.unidad};
+  }
+  if(!m)return null; s.tipo=m;
+  if(m!=='indefinido'){
+    const q=+row.find('.edit_q, .q').val(), u=row.find('.edit_u, .u').val();
+    if(!(q>0)||!u)return null; s.cantidad=q; s.unidad=u;
+  }
+  return s;
+}
+
+function edit_evaluate(i,row,n,p,over){
+  let s=edit_read(row,n,p), err='';
+  if(s&&s.tipo==='hasta'){
+    const S=edit_segs(edit_steps.slice(0,i)).S;
+    if(toH(s.cantidad,s.unidad)<=S){err=I18N.err_greater+fmt(S);s=null;}
+  }
+  row.find('.edit_err, .err').text(err);
+  if(over===undefined&&s&&edit_steps[i]&&JSON.stringify(s)===JSON.stringify(edit_steps[i]))return;
+  const tail=over!==undefined?over:(edit_steps.length>i+1?edit_steps.slice(i+1):(edit_stash.i===i?edit_stash.tail:[]));
+  if(over===undefined&&edit_steps.length>i+1)edit_stash={i,tail};
+  row.nextAll().remove(); edit_steps.length=i;
+  if(s){edit_steps[i]=s; if(s.tipo!=='indefinido')edit_buildCase(i+1,tail);}
+  if(over===undefined)edit_refresh();
+}
+
+function edit_buildCase(i,tail){
+  tail=tail||[];
+  const p=edit_steps[i-1], n=i===0?1:(p.tipo==='cada'?2:3);
+  let d=tail[0]; if(d&&d.caso!==n){d=null;tail=[];}
+  const price=`<div class="input-group input-group-sm w-auto"><span class="input-group-text">$</span><input type="number" min="0" step="any" class="form-control edit_pr pr" style="width:100px" placeholder="${I18N.price_placeholder}"></div>`;
+  const pre=n===1?`<b>${I18N.price_is}</b>${price}`
+    :n===2?`<span>${I18N.charge_prefix} <b>$${p.precio}</b> ${I18N.per_each} <b>${lab(p.cantidad,p.unidad)}</b></span>`
+    :`<span>${I18N.after} <b>${lab(p.cantidad,p.unidad)}</b> ${I18N.price_becomes}</span>${price}`;
+  const modos=(n===2?['indefinido','hasta']:['indefinido','hasta','cada'])
+    .map(m=>`<option value="${m}">${I18N.modos[m] || (m[0].toUpperCase()+m.slice(1))}</option>`).join('');
+  const row=$(`<div class="edit_caso caso card card-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2">
+    <span class="badge text-bg-primary">${I18N.case_badge} ${n}</span>${pre}
+    <select class="form-select form-select-sm w-auto edit_m m"><option value="">${I18N.select_placeholder}</option>${modos}</select>
+    <input type="number" min="0" step="any" class="form-control form-control-sm edit_q q d-none" style="width:90px" placeholder="${I18N.qty_placeholder}">
+    <select class="form-select form-select-sm w-auto edit_u u d-none"></select>
+    <span class="text-danger small edit_err err"></span></div></div>`).appendTo('#edit_casos');
+  edit_sync(row,n);
+  const go=()=>{edit_sync(row,n);edit_evaluate(i,row,n,p);};
+  let t;
+  row.on('change','select',go).on('input','input',()=>{clearTimeout(t);t=setTimeout(go,500);});
+  if(d){
+    if(n!==2)row.find('.edit_pr, .pr').val(d.precio);
+    row.find('.edit_m, .m').val(d.tipo); edit_sync(row,n);
+    row.find('.edit_q, .q').val(d.cantidad||''); row.find('.edit_u, .u').val(d.unidad||'');
+    edit_evaluate(i,row,n,p,tail.slice(1));
+  }
+}
+
+function edit_refresh(){
+  $('#edit_JsonPrice').val(JSON.stringify({pasos:edit_steps},null,2));
+  const {out}=edit_segs(edit_steps), k=+$('#edit_eje').val(), ds=edit_chart.data.datasets[0];
+  edit_chart.options.scales.x.title.text=I18N.chart_time_title + ' ('+$('#edit_eje option:selected').text().toLowerCase()+')';
+  if(!out.length){ds.data=[];edit_chart.update();return;}
+  let base=0; out.forEach(g=>{base=Math.max(base,g.S,isFinite(g.E)?g.E:0);});
+  let H=0;
+  out.forEach(g=>{
+    if(isFinite(g.E))H=Math.max(H,g.E*1.2);
+    else H=Math.max(H,g.N?g.S+6*g.N:Math.max(base*1.5,24));
+  });
+  const ev=new Set([0,H]);
+  out.forEach(g=>{
+    if(g.S<=H)ev.add(g.S); if(isFinite(g.E)&&g.E<=H)ev.add(g.E);
+    if(g.N)for(let j=1,x=g.S+g.N;x<H&&x<=g.E&&j<1500;j++,x=g.S+j*g.N)ev.add(x);
+  });
+  const eps=H/5000, pts=[];
+  [...ev].sort((a,b)=>a-b).forEach(e=>{
+    pts.push({x:e/k,y:edit_price(out,e)});
+    if(e<H)pts.push({x:(e+eps)/k,y:edit_price(out,e+eps)});
+  });
+  ds.data=pts; edit_chart.update();
+}
+
+function edit_reset(tail){
+  $('#edit_casos').empty(); edit_steps=[]; edit_stash={i:-1,tail:[]};
+  edit_buildCase(0,tail); edit_refresh();
+}
+
+// ==========================================
+// 3. FUNCIONALIDAD DENTRO DEL FORMULARIO
+// ==========================================
+let third_steps=[], third_stash={i:-1,tail:[]}, third_chart;
+
+function third_segs(arr){
+  const out=[]; let S=0;
+  arr.forEach(s=>{
+    const E=s.tipo==='hasta'?toH(s.cantidad,s.unidad):Infinity;
+    if(s.caso===2){out.push({S,E,P:s.precio,N:toH(s.cada.cantidad,s.cada.unidad)});S=E;}
+    else if(s.tipo!=='cada'){out.push({S,E,P:s.precio});S=E;}
+  });
+  return {out,S};
+}
+
+function third_price(sg,t){
+  let a=0;
+  for(const g of sg){
+    if(t<=g.S)break;
+    const tt=Math.min(t,g.E);
+    a+=g.N?g.P*Math.ceil((tt-g.S)/g.N-1e-9):g.P;
+  }
+  return a;
+}
+
+function third_sync(row,n){
+  const m=row.find('.m').val(), show=m&&m!=='indefinido';
+  row.find('.q,.u').toggleClass('d-none',!show);
+  const list=(n===1&&m==='hasta')?PL:ALL, u=row.find('.u'), cur=u.val();
+  u.html('<option value="">' + I18N.unit_placeholder + '</option>'+list.map(k=>`<option value="${k}">${U[k][0]}</option>`).join(''))
+   .val(list.includes(cur)?cur:'');
+}
+
+function third_read(row,n,p){
+  const s={caso:n}, m=row.find('.m').val();
+  if(n===2){s.precio=p.precio;s.cada={cantidad:p.cantidad,unidad:p.unidad};}
+  else{
+    const pr=row.find('.pr').val(); if(pr===''||+pr<0)return null;
+    s.precio=+pr; if(n===3)s.despues_de={cantidad:p.cantidad,unidad:p.unidad};
+  }
+  if(!m)return null; s.tipo=m;
+  if(m!=='indefinido'){
+    const q=+row.find('.q').val(), u=row.find('.u').val();
+    if(!(q>0)||!u)return null; s.cantidad=q; s.unidad=u;
+  }
+  return s;
+}
+
+function third_evaluate(i,row,n,p,over){
+  let s=third_read(row,n,p), err='';
+  if(s&&s.tipo==='hasta'){
+    const S=third_segs(third_steps.slice(0,i)).S;
+    if(toH(s.cantidad,s.unidad)<=S){err=I18N.err_greater+fmt(S);s=null;}
+  }
+  row.find('.err').text(err);
+  if(over===undefined&&s&&third_steps[i]&&JSON.stringify(s)===JSON.stringify(third_steps[i]))return;
+  const tail=over!==undefined?over:(third_steps.length>i+1?third_steps.slice(i+1):(third_stash.i===i?third_stash.tail:[]));
+  if(over===undefined&&third_steps.length>i+1)third_stash={i,tail};
+  row.nextAll().remove(); third_steps.length=i;
+  if(s){third_steps[i]=s; if(s.tipo!=='indefinido')third_buildCase(i+1,tail);}
+  if(over===undefined)third_refresh();
+}
+
+function third_buildCase(i,tail){
+  tail=tail||[];
+  const p=third_steps[i-1], n=i===0?1:(p.tipo==='cada'?2:3);
+  let d=tail[0]; if(d&&d.caso!==n){d=null;tail=[];}
+  const price=`<div class="input-group input-group-sm w-auto"><span class="input-group-text">$</span><input type="number" min="0" step="any" class="form-control pr" style="width:100px" placeholder="${I18N.price_placeholder}"></div>`;
+  const pre=n===1?`<b>${I18N.price_is}</b>${price}`
+    :n===2?`<span>${I18N.charge_prefix} <b>$${p.precio}</b> ${I18N.per_each} <b>${lab(p.cantidad,p.unidad)}</b></span>`
+    :`<span>${I18N.after} <b>${lab(p.cantidad,p.unidad)}</b> ${I18N.price_becomes}</span>${price}`;
+  const modos=(n===2?['indefinido','hasta']:['indefinido','hasta','cada'])
+    .map(m=>`<option value="${m}">${I18N.modos[m] || (m[0].toUpperCase()+m.slice(1))}</option>`).join('');
+  const row=$(`<div class="caso card card-body py-2 px-3"><div class="d-flex flex-wrap align-items-center gap-2">
+    <span class="badge text-bg-primary">${I18N.case_badge} ${n}</span>${pre}
+    <select class="form-select form-select-sm w-auto m"><option value="">${I18N.select_placeholder}</option>${modos}</select>
+    <input type="number" min="0" step="any" class="form-control form-control-sm q d-none" style="width:90px" placeholder="${I18N.qty_placeholder}">
+    <select class="form-select form-select-sm w-auto u d-none"></select>
+    <span class="text-danger small err"></span></div></div>`).appendTo('#third_casos');
+  third_sync(row,n);
+  const go=()=>{third_sync(row,n);third_evaluate(i,row,n,p);};
+  let t;
+  row.on('change','select',go).on('input','input',()=>{clearTimeout(t);t=setTimeout(go,500);});
+  if(d){
+    if(n!==2)row.find('.pr').val(d.precio);
+    row.find('.m').val(d.tipo); third_sync(row,n);
+    row.find('.q').val(d.cantidad||''); row.find('.u').val(d.unidad||'');
+    third_evaluate(i,row,n,p,tail.slice(1));
+  }
+}
+
+function third_refresh(){
+  $('#edit_JsonPrice').val(JSON.stringify({pasos:third_steps},null,2));
+  const {out}=third_segs(third_steps), k=+$('#third_eje').val(), ds=third_chart.data.datasets[0];
+  third_chart.options.scales.x.title.text=I18N.chart_time_title + ' ('+$('#third_eje option:selected').text().toLowerCase()+')';
+  if(!out.length){ds.data=[];third_chart.update();return;}
+  let base=0; out.forEach(g=>{base=Math.max(base,g.S,isFinite(g.E)?g.E:0);});
+  let H=0;
+  out.forEach(g=>{
+    if(isFinite(g.E))H=Math.max(H,g.E*1.2);
+    else H=Math.max(H,g.N?g.S+6*g.N:Math.max(base*1.5,24));
+  });
+  const ev=new Set([0,H]);
+  out.forEach(g=>{
+    if(g.S<=H)ev.add(g.S); if(isFinite(g.E)&&g.E<=H)ev.add(g.E);
+    if(g.N)for(let j=1,x=g.S+g.N;x<H&&x<=g.E&&j<1500;j++,x=g.S+j*g.N)ev.add(x);
+  });
+  const eps=H/5000, pts=[];
+  [...ev].sort((a,b)=>a-b).forEach(e=>{
+    pts.push({x:e/k,y:third_price(out,e)});
+    if(e<H)pts.push({x:(e+eps)/k,y:third_price(out,e+eps)});
+  });
+  ds.data=pts; third_chart.update();
+}
+
+function third_reset(tail){
+  $('#third_casos').empty(); third_steps=[]; third_stash={i:-1,tail:[]};
+  third_buildCase(0,tail); third_refresh();
+}
+
+// ==========================================
+// INICIALIZACIÓN
+// ==========================================
+$(function(){
+  if(SHOW_PRODUCT_PRICE){
+    $('form.needs-validation').on('submit',e=>e.preventDefault());
+  }
+  if(SHOW_ITEM_PRICES){
+  // 1. Gráfica y eventos originales
+  chart=new Chart($('#grafica'),{type:'line',
+    data:{datasets:[{label:I18N.chart_price,data:[],borderColor:'#0d6efd',borderWidth:2,pointRadius:0,fill:false}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{type:'linear',min:0,title:{display:true,text:I18N.chart_time_title}},
+              y:{beginAtZero:true,title:{display:true,text:I18N.chart_price_title}}}}});
+  $('#eje').on('change',refresh);
+  $('#btnLimpiar').on('click',()=>{$('#jsonErr').text('');reset();});
+  $('#btnAplicar').on('click',()=>{
+    try{
+      const o=JSON.parse($('#JsonPrice').val());
+      if(!Array.isArray(o.pasos))throw new Error(I18N.err_missing_pasos);
+      $('#jsonErr').text(''); reset(o.pasos);
+    }catch(e){$('#jsonErr').text(I18N.err_invalid_json + e.message);}
+  });
+  reset();
+
+  // 2. Gráfica y eventos edit_
+  edit_chart=new Chart($('#edit_grafica'),{type:'line',
+    data:{datasets:[{label:I18N.chart_price,data:[],borderColor:'#0d6efd',borderWidth:2,pointRadius:0,fill:false}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{type:'linear',min:0,title:{display:true,text:I18N.chart_time_title}},
+              y:{beginAtZero:true,title:{display:true,text:I18N.chart_price_title}}}}});
+  $('#edit_eje').on('change',edit_refresh);
+  $('#edit_btnLimpiar').on('click',()=>{$('#edit_jsonErr').text('');edit_reset();});
+  $('#edit_btnAplicar').on('click',()=>{
+    try{
+      const o=JSON.parse($('#edit_JsonPrice').val());
+      if(!Array.isArray(o.pasos))throw new Error(I18N.err_missing_pasos);
+      $('#edit_jsonErr').text(''); edit_reset(o.pasos);
+    }catch(e){$('#edit_jsonErr').text(I18N.err_invalid_json + e.message);}
+  });
+  edit_reset();
+  }
+
+  if(SHOW_PRODUCT_PRICE){
+  third_chart=new Chart($('#third_grafica'),{type:'line',
+    data:{datasets:[{label:I18N.chart_price,data:[],borderColor:'#0d6efd',borderWidth:2,pointRadius:0,fill:false}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{type:'linear',min:0,title:{display:true,text:I18N.chart_time_title}},
+              y:{beginAtZero:true,title:{display:true,text:I18N.chart_price_title}}}}});
+  $('#third_eje').on('change',third_refresh);
+  $('#third_btnLimpiar').on('click',()=>{$('#third_jsonErr').text('');third_reset();});
+  $('#third_btnAplicar').on('click',()=>{
+    try{
+      const o=JSON.parse($('#edit_JsonPrice').val());
+      if(!Array.isArray(o.pasos))throw new Error(I18N.err_missing_pasos);
+      $('#third_jsonErr').text(''); third_reset(o.pasos);
+    }catch(e){$('#third_jsonErr').text(I18N.err_invalid_json + e.message);}
+  });
+  third_reset();
+  }
 });
 
-function actualizarJSON1() {
-    const idsExistentes = $('.linea-config').map(function() { return this.id; }).get();
-    configTotal = configTotal.filter(item => idsExistentes.includes(item.id_linea));
-    $('#JsonPrice').val(JSON.stringify(configTotal, null, 2));
-    $('#edit_JsonPrice').val(JSON.stringify(configTotal, null, 2));
-    proyectarTarifa(); 
-}
 
-function actualizarJSON() {
-    const idsExistentes = $('.linea-config').map(function() { return this.id; }).get();
-    configTotal = configTotal.filter(item => idsExistentes.includes(item.id_linea));
-    $('#JsonPrice').val(JSON.stringify(configTotal, null, 2));
-    $('#edit_JsonPrice').val(JSON.stringify(configTotal, null, 2));
-    proyectarTarifa(); 
-}
-
-function limpiarHijos(elementoPadre) {
-    $(elementoPadre).nextAll().remove();
-    actualizarJSON();
-}
-
-function proyectarTarifa() {
-    if (configTotal.length === 0) return;
-
-    const conv = { 
-        "hora": 1, "horas": 1, 
-        "dia": 24, "dias": 24, 
-        "semana": 168, "semanas": 168 
-    };
-    
-    let data = [];
-    let costo = 0;
-    const MAX_H = 72; 
-
-    const f1 = configTotal.find(c => c.funcion === "f1");
-    if (!f1) return;
-
-    let p1 = parseFloat(f1.precio) || 0;
-    costo = p1; 
-
-    if (f1.tipo === "Indefinido") {
-        for (let h = 0; h <= MAX_H; h++) {
-            data.push({ h, costo: p1 });
-        }
-    } 
-    else if (f1.tipo === "Cada") {
-        let horasF1 = (parseFloat(f1.tiempo) || 1) * conv[f1.unidad];
-        const f2 = configTotal.find(c => c.funcion === "f2");
-
-        for (let h = 0; h <= MAX_H; h++) {
-            if (f2 && f2.tipo === "Hasta") {
-                let limiteF2 = (parseFloat(f2.tiempo) || 1) * conv[f2.unidad];
-                if (h > 0 && h < limiteF2 && h % horasF1 === 0) {
-                    costo += p1;
-                }
-                if (h >= limiteF2) {
-                    const f3 = configTotal.find(c => c.funcion === "f3");
-                    if (f3 && f3.tipo === "Cada") {
-                        let horasF3 = (parseFloat(f3.tiempo) || 1) * conv[f3.unidad];
-                        if ((h - limiteF2) % horasF3 === 0) {
-                            costo += parseFloat(f3.precio);
-                        }
-                    }
-                }
-            } else {
-                if (h > 0 && h % horasF1 === 0) costo += p1;
-            }
-            data.push({ h, costo });
-        }
-    } 
-    else if (f1.tipo === "Hasta") {
-        let horasF1 = (parseFloat(f1.tiempo) || 1) * conv[f1.unidad];
-        const f3 = configTotal.find(c => c.funcion === "f3");
-
-        for (let h = 0; h <= MAX_H; h++) {
-            if (h > horasF1 && f3) {
-                let horasF3 = (parseFloat(f3.tiempo) || 1) * conv[f3.unidad];
-                if (f3.tipo === "Hasta") {
-                    if (h <= horasF1 + horasF3) costo = parseFloat(f3.precio);
-                } else if (f3.tipo === "Cada") {
-                    if ((h - horasF1) % horasF3 === 0) costo += parseFloat(f3.precio);
-                }
-            }
-            data.push({ h, costo });
-        }
-    }
-    renderGrafica(data);
-}
-
-function renderGrafica(data) {
-    const ctx = document.getElementById('costosChart').getContext('2d');
-
-    if (myChart) {
-        myChart.destroy();
-    }
-
-    myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: data.map(d => `${d.h} hrs`),
-            datasets: [{
-                label: txt.lblCostoAcumulado,
-                data: data.map(d => d.costo),
-                borderColor: '#3498db',
-                backgroundColor: 'rgba(52, 152, 219, 0.2)',
-                borderWidth: 2,
-                pointRadius: 3,
-                pointBackgroundColor: '#3498db',
-                fill: true,
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    title: { display: true, text: txt.lblEjeX }
-                },
-                y: {
-                    title: { display: true, text: txt.lblEjeY },
-                    beginAtZero: true
-                }
-            },
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `${txt.lblCostoAcumulado}: $${context.raw}`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-function ejecutarFuncion1() {
-    const id = "f1_" + Date.now();
-    const html = `
-    <div class="linea-config" id="${id}">
-        <span class="etiqueta-f">F1:</span>
-        ${txt.f1Precio} <input type="number" class="val-precio" value="0">
-        <select class="sel-tipo" onchange="configTotal = []">
-            <option value="">${txt.selDefault}</option>
-            <option value="Indefinido">${txt.optIndefinido}</option>
-            <option value="Hasta">${txt.optHasta}</option>
-            <option value="Cada">${txt.optCada}</option>
-        </select>
-        <span class="dinamico"></span>
-    </div>`;
-    //alert(IdSelected)
-    if (IdSelected == 0 || IdSelected == ''){
-        $('#contenedor-funciones').append(html);
-    }
-    else{
-        $('#edit_contenedor-funciones').append(html);
-    }
-        
-
-    $(`#${id} .sel-tipo`).on('change', function() {
-        limpiarHijos(`#${id}`);
-        const precio = $(`#${id} .val-precio`).val();
-        const tipo = $(this).val();
-        let registro = { id_linea: id, funcion: "f1", precio: precio, tipo: tipo };
-        configTotal.push(registro);
-        
-        const contenedor = $(`#${id} .dinamico`).empty();
-        
-        if (tipo === "Cada") {
-            contenedor.append(`
-                <input type="number" class="val-t" placeholder="${txt.placeholderCant}">
-                <select class="sel-tt">
-                    <option value="">--</option>
-                    <option value="dia"><?php Trd_2(19)?></option><option value="hora"><?php Trd_2(17)?></option><option value="semana"><?php Trd_2(21)?></option>
-                    <option value="dias"><?php Trd_2(20)?></option><option value="horas"><?php Trd_2(18)?></option><option value="semanas"><?php Trd_2(22)?></option>
-                </select>`);
-            
-            $(`#${id} .sel-tt`).on('change', function() {
-                const tt = $(this).val();
-                const vt = $(`#${id} .val-t`);
-                ["dia", "hora", "semana"].includes(tt) ? vt.hide().val(1) : vt.show();
-                registro.tiempo = vt.val(); registro.unidad = tt;
-                actualizarJSON();
-                ejecutarFuncion2(precio, registro.tiempo, tt);
-            });
-        } else if (tipo === "Hasta") {
-            contenedor.append(`
-                <input type="number" class="val-t">
-                <select class="sel-tt">
-                    <option value="">--</option>
-                    <option value="dias"><?php Trd_2(20)?></option><option value="horas"><?php Trd_2(18)?></option><option value="semanas"><?php Trd_2(22)?></option>
-                </select>`);
-            
-            $(`#${id} .sel-tt`).on('change', function() {
-                registro.tiempo = $(`#${id} .val-t`).val(); registro.unidad = $(this).val();
-                actualizarJSON();
-                ejecutarFuncion3(registro.tiempo, registro.unidad);
-            });
-        }
-        actualizarJSON();
-    });
-}
-
-function ejecutarFuncion2(pPrev, tPrev, uPrev) {
-    const id = "f2_" + Date.now();
-    const html = `
-    <div class="linea-config" id="${id}">
-        <span class="etiqueta-f">F2:</span>
-        ${txt.f2Cargo} ${pPrev} ${txt.f2PorCada} ${tPrev} ${uPrev} | 
-        <select class="sel-tipo">
-            <option value="">${txt.selDefault}</option>
-            <option value="Indefinido">${txt.optIndefinido}</option>
-            <option value="Hasta">${txt.optHasta}</option>
-        </select>
-        <span class="dinamico"></span>
-    </div>`;
-    //alert(IdSelected)
-    if (IdSelected == 0 || IdSelected == ''){
-        $('#contenedor-funciones').append(html);
-    }
-    else{
-        $('#edit_contenedor-funciones').append(html);
-    }
-
-    $(`#${id} .sel-tipo`).on('change', function() {
-        limpiarHijos(`#${id}`);
-        const tipo = $(this).val();
-        let registro = { id_linea: id, funcion: "f2", precio: pPrev, tipo: tipo };
-        configTotal.push(registro);
-        
-        if (tipo === "Hasta") {
-            $(`#${id} .dinamico`).html(`<input type="number" class="val-t"> <span>${uPrev}</span>`);
-            $(`#${id} .val-t`).on('change', function() {
-                registro.tiempo = $(this).val(); registro.unidad = uPrev;
-                actualizarJSON();
-                ejecutarFuncion3(registro.tiempo, uPrev);
-            });
-        }
-        actualizarJSON();
-    });
-}
-
-function ejecutarFuncion3(tPrev, uPrev) {
-    const id = "f3_" + Date.now();
-    const html = `
-    <div class="linea-config" id="${id}">
-        <span class="etiqueta-f">F3:</span>
-        ${txt.f3Despues} ${tPrev} ${uPrev} ${txt.f3Precio} <input type="number" class="val-precio" value="0">
-        <select class="sel-tipo">
-            <option value="">${txt.selDefault}</option>
-            <option value="Indefinido">${txt.optIndefinido}</option>
-            <option value="Cada">${txt.optCada}</option>
-            <option value="Hasta">${txt.optHasta}</option>
-        </select>
-        <span class="dinamico"></span>
-    </div>`;
-    //alert(IdSelected)
-    if (IdSelected == 0 || IdSelected == ''){
-        $('#contenedor-funciones').append(html);
-    }
-    else{
-        $('#edit_contenedor-funciones').append(html);
-    }
-
-    $(`#${id} .sel-tipo`).on('change', function() {
-        limpiarHijos(`#${id}`);
-        const p = $(`#${id} .val-precio`).val();
-        const tipo = $(this).val();
-        let registro = { id_linea: id, funcion: "f3", precio: p, tipo: tipo };
-        configTotal.push(registro);
-
-        const contenedor = $(`#${id} .dinamico`).empty();
-        if (tipo === "Cada") {
-            contenedor.append(`
-                <input type="number" class="val-t">
-                <select class="sel-tt">
-                    <option value="">--</option>
-                    <option value="dia"><?php Trd_2(19)?></option><option value="hora"><?php Trd_2(17)?></option><option value="semana"><?php Trd_2(21)?></option>
-                    <option value="dias"><?php Trd_2(20)?></option><option value="horas"><?php Trd_2(18)?></option><option value="semanas"><?php Trd_2(22)?></option>
-                </select>`);
-            
-            $(`#${id} .sel-tt`).on('change', function() {
-                const tt = $(this).val();
-                const vt = $(`#${id} .val-t`);
-                ["dia", "hora", "semana"].includes(tt) ? vt.hide().val(1) : vt.show();
-                registro.tiempo = vt.val(); registro.unidad = tt;
-                actualizarJSON();
-                ejecutarFuncion2(p, registro.tiempo, tt);
-            });
-        } else if (tipo === "Hasta") {
-            contenedor.append(`
-                <input type="number" class="val-t">
-                <select class="sel-tt">
-                    <option value="">--</option>
-                    <option value="dias"><?php Trd_2(20)?></option><option value="horas"><?php Trd_2(18)?></option><option value="semanas"><?php Trd_2(22)?></option>
-                </select>`);
-            
-            $(`#${id} .sel-tt`).on('change', function() {
-                registro.tiempo = $(`#${id} .val-t`).val(); registro.unidad = $(this).val();
-                actualizarJSON();
-                ejecutarFuncion3(registro.tiempo, registro.unidad);
-            });
-        }
-        actualizarJSON();
-    });
-}
-
-function cargar() {
-    try {
-        //alert('cargar')
-        
-        const rawValue = $('#edit_JsonPrice').val();
-        const decodedValue = $('<div/>').html(rawValue).text();
-
-        const data = JSON.parse(decodedValue);
-
-        if (!Array.isArray(data) || data.length === 0) return;
-
-        // 1. Limpiar el estado actual
-        $('#contenedor-funciones').empty();
-        $('#edit_contenedor-funciones').empty();
-        configTotal = [];
-
-        // 2. Identificar las funciones presentes
-        const f1 = data.find(item => item.funcion === "f1");
-        const f2 = data.find(item => item.funcion === "f2");
-        const f3 = data.find(item => item.funcion === "f3");
-
-
-        // 3. Reconstruir F1
-        if (f1) {
-            ejecutarFuncion1(); 
-            const $f1Element = $('.linea-config').last();
-            $f1Element.find('.val-precio').val(f1.precio);
-            $f1Element.find('.sel-tipo').val(f1.tipo).trigger('change');
-            
-            if (f1.tiempo) {
-                $f1Element.find('.val-t').val(f1.tiempo);
-                $f1Element.find('.sel-tt').val(f1.unidad).trigger('change');
-            }
-        }
-
-        // 4. Reconstruir F2 (si existe)
-        if (f2) {
-            const $f2Element = $(`[id^="f2_"]`); // Busca el elemento F2 recién creado por el trigger de F1
-            $f2Element.find('.sel-tipo').val(f2.tipo).trigger('change');
-            
-            if (f2.tiempo) {
-                $f2Element.find('.val-t').val(f2.tiempo).trigger('change');
-            }
-        }
-
-        // 5. Reconstruir F3 (si existe)
-        if (f3) {
-            const $f3Element = $(`[id^="f3_"]`);
-            $f3Element.find('.val-precio').val(f3.precio);
-            $f3Element.find('.sel-tipo').val(f3.tipo).trigger('change');
-
-            if (f3.tiempo) {
-                $f3Element.find('.val-t').val(f3.tiempo);
-                $f3Element.find('.sel-tt').val(f3.unidad).trigger('change');
-            }
-        }
-
-        // Forzar actualización de la gráfica al terminar
-        proyectarTarifa();
-
-    } catch (e) {
-        ejecutarFuncion1(); 
-        //alert("Error al leer el JSON: " + e.message);
-    }
-}
 
     $('#edit_products_item_price').on('submit', function(e) {
 
@@ -3088,22 +3182,29 @@ function cargar() {
                 Object.entries(response).forEach(([clave, valor]) => {
 
                 const input = document.getElementById("edit_"+clave);
-
+                    //alert(clave)
                     switch (clave) {
                     case 'ItemPrice':
                             const instance = myChoicesInstances["edit_" + clave];
-                            instance.setChoiceByValue(String(valor));                        
+                            if (instance) {
+                                instance.setChoiceByValue(String(valor));
+                            } else if (input) {
+                                input.value = String(valor);
+                                input.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
                         break;
                     case 'JsonPrice':
-                            ejecutarFuncion1();
+                            $('#third_btnLimpiar').click();   
+                            //ejecutarFuncion1();
                             input.value = valor || '';
-                            cargar();
+                            $('#third_btnAplicar').click();   
+                            //cargar();
                     //const contenedor = document.getElementById('edit_contenedor-funciones');
                     //const inputs = contenedor.querySelectorAll('input');
                     //inputs.forEach(input => {
                     //    input.disabled = true;
                     //});
-                    $('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);                          
+                    //$('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);                          
                         break;
                     case 'Taxable':
                             input.checked = (valor == 1);
@@ -3144,15 +3245,17 @@ function cargar() {
 
                     switch (clave) {
                     case 'JsonPrice':
-                            ejecutarFuncion1();
+                            $('#third_btnLimpiar').click();   
+                            //ejecutarFuncion1();
                             input.value = valor || '';
-                            cargar();
+                            $('#third_btnAplicar').click();   
+                            //cargar();
                     //const contenedor = document.getElementById('edit_contenedor-funciones');
                     //const inputs = contenedor.querySelectorAll('input');
                     //inputs.forEach(input => {
                     //    input.disabled = true;
                     //});
-                    $('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);                           
+                    //$('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);                           
                         break;
                     case 'Taxable':
                             input.checked = (valor == 1);
@@ -3263,9 +3366,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // También dispara tu función original si la necesitas
         //get_json_price(nuevoValor);
         $('#edit_new').val(1);
-        $('#contenedor-funciones').empty();
-        $('#edit_contenedor-funciones').empty();        
-        ejecutarFuncion1();
+        //$('#contenedor-funciones').empty();
+        //$('#edit_contenedor-funciones').empty();        
+        $('#third_btnLimpiar').click();   
     });
 
     // Para los cambios normales (selección de existente)
@@ -3675,4 +3778,3 @@ $.ajax({
 
 </body>
 </html>
-

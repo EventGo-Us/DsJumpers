@@ -4700,7 +4700,108 @@ function generar_uuid_v4() {
     // Formateamos en el estándar 8-4-4-4-12
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
-function calcularCostoEstanciaPHP($jsonConfig, $inicio, $fin) {
+
+
+function calcularCostoEstanciaPHP(string $json, string $fechahorainicio, string $fechahoratermino): float
+{
+    $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+    if (!isset($data['pasos']) || !is_array($data['pasos'])) {
+        throw new InvalidArgumentException('El JSON debe incluir un arreglo "pasos".');
+    }
+
+    $inicio = new DateTimeImmutable($fechahorainicio);
+    $termino = new DateTimeImmutable($fechahoratermino);
+    $segundos = $termino->getTimestamp() - $inicio->getTimestamp();
+
+    if ($segundos <= 0) {
+        throw new InvalidArgumentException('La fecha de término debe ser posterior a la fecha de inicio.');
+    }
+
+    $horasEstancia = $segundos / 3600;
+    $horasPorUnidad = [
+        'hora' => 1,
+        'horas' => 1,
+        'dia' => 24,
+        'dias' => 24,
+        'semana' => 168,
+        'semanas' => 168,
+    ];
+
+    $segmentos = [];
+    $inicioSegmento = 0.0;
+
+    foreach ($data['pasos'] as $paso) {
+        if (!isset($paso['tipo'], $paso['caso'], $paso['precio'])) {
+            throw new InvalidArgumentException('Cada paso debe incluir "caso", "tipo" y "precio".');
+        }
+
+        $finSegmento = INF;
+
+        if ($paso['tipo'] === 'hasta') {
+            $unidad = $paso['unidad'] ?? '';
+            if (!isset($horasPorUnidad[$unidad]) || !isset($paso['cantidad'])) {
+                throw new InvalidArgumentException('Unidad o cantidad inválida en un paso "hasta".');
+            }
+
+            $finSegmento = (float) $paso['cantidad'] * $horasPorUnidad[$unidad];
+        }
+
+        if ((int) $paso['caso'] === 2) {
+            $unidad = $paso['cada']['unidad'] ?? '';
+            $cantidad = $paso['cada']['cantidad'] ?? null;
+
+            if (!isset($horasPorUnidad[$unidad]) || !is_numeric($cantidad) || (float) $cantidad <= 0) {
+                throw new InvalidArgumentException('El paso "cada" debe tener una cantidad y unidad válidas.');
+            }
+
+            $segmentos[] = [
+                'inicio' => $inicioSegmento,
+                'fin' => $finSegmento,
+                'precio' => (float) $paso['precio'],
+                'periodo' => (float) $cantidad * $horasPorUnidad[$unidad],
+            ];
+
+            $inicioSegmento = $finSegmento;
+        } elseif ($paso['tipo'] !== 'cada') {
+            $segmentos[] = [
+                'inicio' => $inicioSegmento,
+                'fin' => $finSegmento,
+                'precio' => (float) $paso['precio'],
+                'periodo' => null,
+            ];
+
+            $inicioSegmento = $finSegmento;
+        }
+    }
+
+    if ($segmentos === []) {
+        throw new InvalidArgumentException('No hay pasos de precio para calcular.');
+    }
+
+    $total = 0.0;
+
+    foreach ($segmentos as $segmento) {
+        if ($horasEstancia <= $segmento['inicio']) {
+            break;
+        }
+
+        $horasEnSegmento = min($horasEstancia, $segmento['fin']);
+
+        if ($segmento['periodo'] !== null) {
+            $periodos = ceil(
+                ($horasEnSegmento - $segmento['inicio']) / $segmento['periodo'] - 1e-9
+            );
+            $total += $segmento['precio'] * $periodos;
+        } else {
+            $total += $segmento['precio'];
+        }
+    }
+
+    return $total;
+}
+
+function calcularCostoEstanciaPHP_($jsonConfig, $inicio, $fin) {
     $configTotal = is_string($jsonConfig) ? json_decode($jsonConfig, true) : $jsonConfig;
     if (empty($configTotal)) return 0;
     $fechaInicio = new DateTime($inicio);

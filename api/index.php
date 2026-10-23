@@ -602,6 +602,14 @@ switch ($resource) {
         sales($resource,$db, $method, $id, $data);
         break;        
 
+    case 'blog_posts':
+        blog_posts($resource, $db, $method, $id, $data, (int) $decoded_token->data->id);
+        break;
+
+    case 'banner_images':
+        banner_images($db, $method, $id, $data);
+        break;
+
     case 'comments_admin':
         comments_admin($resource,$db, $method, $id, $data);
         break;                

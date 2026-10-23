@@ -2,6 +2,7 @@
 // Añadimos el parámetro opcional $BotonesFijos por defecto en false para no romper compatibilidad
 function add_form($IdTabla, $Idioma, $Tp, $BotonesFijos = false){
     global $db;
+    global $t;
     ?>  
     <?php
         // Contenedores estandarizados con esquinas redondeadas modernas (rounded-4), sin bordes toscos y sombras sutiles
@@ -70,7 +71,44 @@ function add_form($IdTabla, $Idioma, $Tp, $BotonesFijos = false){
             ?>
             <div class="container-fluid px-0 mt-4">
                 <h5 class="text-dark fw-bold mb-3"><?php Trd_2(2)?></h5>
-                <div id="contenedor-funciones" class="p-3 bg-light rounded-3 border"></div>
+                <div id="contenedor-funciones" class="p-3 bg-light rounded-3 border">
+
+  <div class="mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h4 mb-0"><?= $t['funcion_precios'] ?></h1>
+      <button type="button" id="btnLimpiar" class="btn btn-outline-danger btn-sm"><?= $t['limpiar'] ?></button>
+    </div>
+    <div id="casos" class="vstack gap-2 mb-4"></div>
+    <div class="row g-3 mb-3">
+      <div class="col-lg-12">
+        <div class="card"><div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <h2 class="h6 mb-0"><?= $t['precio_vs_tiempo'] ?></h2>
+            <select id="eje" class="form-select form-select-sm w-auto">
+              <option value="1"><?= $t['horas'] ?></option>
+              <option value="24"><?= $t['dias'] ?></option>
+              <option value="168"><?= $t['semanas'] ?></option>
+            </select>
+          </div>
+          <div style="height:320px"><canvas id="grafica"></canvas></div>
+        </div></div>
+      </div>
+    </div>
+    <div class="row g-3" style="display: none;">
+      <div class="col-lg-12">
+        <div class="card h-100"><div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between mb-2">
+            <h2 class="h6 mb-0"><?= $t['json_precio'] ?></h2>
+            <button type="button" id="btnAplicar" class="btn btn-sm btn-outline-primary"><?= $t['aplicar_json'] ?></button>
+          </div>
+          <textarea id="json" class="form-control font-monospace flex-grow-1" rows="10" spellcheck="false"></textarea>
+          <div id="jsonErr" class="text-danger small mt-1"></div>
+        </div></div>
+      </div>
+    </div>  
+  </div>
+
+                </div>
             </div>
             <?php 
         }

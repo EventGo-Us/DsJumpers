@@ -26,16 +26,44 @@ function add_listado($IdTabla,$collapse = ''){
             </div>
             
         </div>
+<?php if ($IdTabla == 'inventory_stock'){?>
+        <div class="row">
+            <div class="col-4">
+                <div class="form-check">
+                <input class="form-check-input" type="radio" name="inventory" id="SalesI" onclick="$('#table-container_inventory_stock').html('');listado('inventory_stock')">
+                <label class="form-check-label" for="SalesI">
+                    <?= Trd(75) ?>
+                </label>
+                </div>
+            </div>
 
-<div class="row">
-    <div class="col-12">
-        <div id="table-container_<?php echo $IdTabla;?>" 
-             class="table-responsive rounded-3 border bg-white" 
-             style="max-height: 70vh; overflow-y: auto;">
-             
-             </div>
-    </div>
-</div>
+            <div class="col-4">
+                <div class="form-check">
+                <input class="form-check-input" type="radio" name="inventory" id="RentI" onclick="$('#table-container_inventory_stock').html('');listado('inventory_stock')">
+                <label class="form-check-label" for="RentI">
+                    <?= Trd(76) ?>
+                </label>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="form-check">
+                <input class="form-check-input" type="radio" name="inventory" id="AllI" checked onclick="$('#table-container_inventory_stock').html('');listado('inventory_stock')">
+                <label class="form-check-label" for="AllI">
+                    <?= Trd(77) ?>
+                </label>
+                </div>
+            </div>           
+        </div>
+<?php } ?>
+        <div class="row">
+            <div class="col-12">
+                <div id="table-container_<?php echo $IdTabla;?>" 
+                    class="table-responsive rounded-3 border bg-white" 
+                    style="max-height: 70vh; overflow-y: auto;">
+                    
+                    </div>
+            </div>
+        </div>
         
         <div class="row mt-3">
             <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">

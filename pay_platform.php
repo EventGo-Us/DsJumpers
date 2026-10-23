@@ -7,14 +7,32 @@
     include_once 'config/database.php'; 
     $database = new Database();
     $db = $database->getConnection();
-    //$_SESSION['Idioma'] = 'es';
+
+
+    $Idioma = $_SESSION['Idioma'];
+    $query = "select Traduccion FROM  programas_traduccion where Programa = 'pay_config' AND Idioma = ? ORDER BY Id";            
+    $stmt = $db->prepare($query);
+    $stmt->bindValue(1, $Idioma);
+    $stmt->execute();
+    $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $Traducciones[]='';
+    if ($resultados) {
+        foreach ($resultados as $registro) {
+            $Traducciones[]=$registro['Traduccion'];
+        }
+    }    
+
+    function Trd($Id){
+        global $Traducciones;
+        return $Traducciones[$Id];
+    }
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo $_SESSION['Idioma'];?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuración con Navbar</title>
+    <title><?= Trd(1);?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
@@ -27,22 +45,22 @@
     <div class="row justify-content-center">
         <div class="col-md-6">
             <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">Configuración de plataforma de Pagos</div>
+                <div class="card-header bg-primary text-white"><?= Trd(2);?></div>
                 <div class="card-body">
                     <form id="paymentForm">
                         
                         <div class="mb-4">
-                            <label class="form-label fw-bold">Plataforma Principal (Obligatoria)</label>
+                            <label class="form-label fw-bold"><?= Trd(3);?></label>
                             <select class="form-select" id="pay_platform" name="pay_platform" required>
-                                <option value="">Seleccione una opción...</option>
+                                <option value=""><?= Trd(4);?></option>
                                 <option value="OPAY">OPAY</option>
                                 <option value="SQUARE">SQUARE</option>
                             </select>
-                            <div class="form-text">Selecciona la pasarela principal para procesar tarjetas.</div>
+                            <div class="form-text"><?= Trd(5);?></div>
                         </div>
 
                         <div id="section_OPAY" class="payment-section d-none border p-3 rounded bg-light mb-4">
-                            <h6 class="text-primary border-bottom pb-2 fw-bold">Datos OPAY</h6>
+                            <h6 class="text-primary border-bottom pb-2 fw-bold"><?= Trd(6);?></h6>
                             <div class="mb-2">
                                 <label class="small fw-bold">ID</label>
                                 <input type="text" class="form-control form-control-sm" name="opay_id" id="opay_id">
@@ -58,7 +76,7 @@
                         </div>
 
                         <div id="section_SQUARE" class="payment-section d-none border p-3 rounded bg-light mb-4">
-                            <h6 class="text-primary border-bottom pb-2 fw-bold">Datos SQUARE</h6>
+                            <h6 class="text-primary border-bottom pb-2 fw-bold"><?= Trd(7);?></h6>
                             <div class="mb-2">
                                 <label class="small fw-bold">ID</label>
                                 <input type="text" class="form-control form-control-sm" name="square_id" id="square_id">
@@ -78,13 +96,13 @@
                         <div class="mb-3">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" role="switch" name="paypal_active" id="paypal_active">
-                                <label class="form-check-label fw-bold" for="paypal_active">Ofrecer PayPal como alternativa</label>
+                                <label class="form-check-label fw-bold" for="paypal_active"><?= Trd(8);?></label>
                             </div>
-                            <div class="form-text">Activa esta opción si deseas permitir que tus clientes paguen también con PayPal.</div>
+                            <div class="form-text"><?= Trd(9);?></div>
                         </div>
 
                         <div id="section_PAYPAL" class="payment-section d-none border p-3 rounded bg-light mb-4">
-                            <h6 class="text-warning border-bottom pb-2 fw-bold">Datos PAYPAL</h6>
+                            <h6 class="text-warning border-bottom pb-2 fw-bold"><?= Trd(10);?></h6>
                             <div class="mb-2">
                                 <label class="small fw-bold">ID</label>
                                 <input type="text" class="form-control form-control-sm" name="paypal_id" id="paypal_id">
@@ -98,7 +116,7 @@
                         <div class="d-grid mt-4">
                             <button type="submit" class="btn btn-success" id="btnSave">
                                 <span id="spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                                <span id="btnText">Actualizar Configuración</span>
+                                <span id="btnText"><?= Trd(11);?></span>
                             </button>
                         </div>
                     </form>
@@ -112,7 +130,7 @@
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
   <div id="liveToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true">
     <div class="toast-header bg-primary text-white">
-      <strong class="me-auto"><i class="fas fa-bell me-2"></i> Notificación</strong>
+      <strong class="me-auto"><i class="fas fa-bell me-2"></i> <?= Trd(12);?></strong>
       <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
     <div class="toast-body" id="toast-message">
@@ -205,11 +223,11 @@ $(document).ready(function() {
                 // 1. Mostrar spinner y deshabilitar botón
                 $btn.prop('disabled', true);
                 $spinner.removeClass('d-none');
-                $text.text(' Actualizando...'); // Opcional: cambiar el texto
+                $text.text('<?= Trd(13);?>'); // Opcional: cambiar el texto
             },            
             success: function(res) {
                 if(res.status === 'success') {
-                    mostrarToast("Configuración actualizada con éxito.", false);
+                    mostrarToast('<?= Trd(14);?>', false);
                     
                 } else {
                     mostrarToast('Error: ' + res.message, true);
@@ -217,14 +235,14 @@ $(document).ready(function() {
                 }
             },
             error: function() {
-                mostrarToast('Error crítico en el servidor.' , true);
+                mostrarToast('<?= Trd(15);?>' , true);
                 
             },
             complete: function() {
                 // 2. Restaurar botón al finalizar (éxito o error)
                 $btn.prop('disabled', false);
                 $spinner.addClass('d-none');
-                $text.text('Actualizar Configuración');
+                $text.text('<?= Trd(11);?>');
             }
         });
     });

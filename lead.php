@@ -2672,14 +2672,19 @@ function distance_charge(zip,ctry){
         data: JSON.stringify({ ZIPO: '<?php echo $account['CP']?>', CONO: '<?php echo $account['Pais']?>', ZIPD: zip, COND: ctry , APPLY: <?= $account['DistanceCharge'] ?>}),
 
         success: function(data) {
-            let totaldist = data.cost.costo_total;
-            $('#Distance_Charges_Total').val(totaldist.toFixed(2))
-            $('#Distance_Charges_check').prop('checked', true);
-            
-            //$('#Tax').prop('checked', true);
-            $('#TaxPc').val(data.cost.taxrate);
-            
-            recalculate_totals()
+            if (data.cost.status == 'success') {
+                let totaldist = data.cost.costo_total;
+                $('#Distance_Charges_Total').val(totaldist.toFixed(2))
+                $('#Distance_Charges_check').prop('checked', true);
+                
+                //$('#Tax').prop('checked', true);
+                $('#TaxPc').val(data.cost.taxrate);
+                
+                recalculate_totals()
+            }
+            else{
+                lanzarMensaje("No aplica el envio a ese destino",'error',5000);
+            }
         },
         error: function(xhr, status, error) {
             if (xhr.status === 401) {

@@ -16,13 +16,15 @@ header('Content-Type: application/json');
 
 $product_id = intval($_POST['product_id'] ?? 0);
 $gallery = $_POST['table'] ?? 'products_images';
+$isBlogImage = $gallery === 'blog';
+$isBannerImage = $gallery === 'banner';
 
-if (!in_array($gallery, ['products_images', 'products_images_sale'], true)) {
+if (!in_array($gallery, ['products_images', 'products_images_sale', 'blog', 'banner'], true)) {
     echo json_encode(['success' => false, 'message' => 'Tabla de imágenes no válida']);
     exit;
 }
 
-if (!$product_id) {
+if (!$isBlogImage && !$isBannerImage && !$product_id) {
     echo json_encode(['success' => false, 'message' => 'Producto no especificado']);
     exit;
 }
@@ -64,9 +66,13 @@ for ($i = 0; $i < $count; $i++) {
     $imgOriginal = cargarImagen($origen);
 
     if ($imgOriginal) {
-        generarThumbnailAVIF($imgOriginal, $destinot, 150);
+        if (!$isBannerImage) {
+            generarThumbnailAVIF($imgOriginal, $destinot, 150);
+        }
         generarNormalAVIF($imgOriginal, $destino, 1200);
-        generarThumbnailJPG($imgOriginal, $destinot2, 150);
+        if (!$isBannerImage) {
+            generarThumbnailJPG($imgOriginal, $destinot2, 150);
+        }
 
         imagedestroy($imgOriginal);
         unlink($origen);
@@ -78,8 +84,22 @@ for ($i = 0; $i < $count; $i++) {
                     $miniatura = "thumbnail_".$finalName;
                     $miniaturaj = "thumbnail_".$finalName;
                     $miniaturaj =  str_replace("avif", "jpg", $miniaturaj);
-                    upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj);
+                    $uploadError = '';
+                    if (!upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj,$isBannerImage,$uploadError)) {
+                        $results[] = [
+                            'success' => false,
+                            'message' => "Error al almacenar $name: $uploadError"
+                        ];
+                        continue;
+                    }
 
+        if ($isBlogImage || $isBannerImage) {
+            $results[] = [
+                'success' => true,
+                'image' => $finalName
+            ];
+            continue;
+        }
 
         // Obtener el siguiente orden
         $stmt = $pdo->prepare("SELECT COALESCE(MAX(Orden), 0) + 1 AS next_order FROM $gallery WHERE Product = ?");
@@ -110,7 +130,7 @@ exit;
 
 
 
-function upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj){
+function upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj,$originalOnly = false,&$error = null){
     $r2_config = [
         'region' => 'auto',
         'endpoint' => CFENDPOINT,
@@ -120,8 +140,8 @@ function upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj){
         ],
     ];
 
-    $s3Client    = new S3Client($r2_config);
     try{
+        $s3Client = new S3Client($r2_config);
         $bucket_name = 'eventgo';
         $s3Client->putObject([
             'Bucket' => $bucket_name,
@@ -130,6 +150,10 @@ function upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj){
             'ContentType' => 'image/avif'
         ]);
         unlink('tmp/'.$normal);
+
+        if ($originalOnly) {
+            return true;
+        }
 
         $miniatura_ =  str_replace("thumbnail_", "", $miniatura);
         rename('tmp/'.$miniatura, 'tmp/'.$miniatura_);
@@ -156,8 +180,29 @@ function upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj){
 
         return true;
     } catch (Aws\S3\Exception\S3Exception $e) {
-        //error_log("Error al subir a S3: " . $e->getMessage());
-        echo"Error al subir a S3: " . $e->getMessage();
+        error_log("Error al subir a S3: " . $e->getMessage());
+        $awsError = $e->getAwsErrorMessage();
+        $awsCode = $e->getAwsErrorCode();
+        $error = $awsCode
+            ? "AWS $awsCode: " . ($awsError ?: $e->getMessage())
+            : ($awsError ?: $e->getMessage());
+        if (is_file('tmp/'.$normal)) {
+            unlink('tmp/'.$normal);
+        }
+        return false;
+    } catch (InvalidArgumentException $e) {
+        error_log("Configuración inválida al subir a S3: " . $e->getMessage());
+        $error = $e->getMessage();
+        if (is_file('tmp/'.$normal)) {
+            unlink('tmp/'.$normal);
+        }
+        return false;
+    } catch (RuntimeException $e) {
+        error_log("Error de archivo al subir a S3: " . $e->getMessage());
+        $error = $e->getMessage();
+        if (is_file('tmp/'.$normal)) {
+            unlink('tmp/'.$normal);
+        }
         return false;
     }        
-} 
+}

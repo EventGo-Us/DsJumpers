@@ -202,7 +202,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                         SELECT
                             products_item_price.Producto, 
                             products_item_price.ItemPrice, 
-                            item_prices.JsonPrice, 
+                            item_prices.JsonPrice as JsonPrice, 
                             products_item_price.Taxable
                         FROM
                             products_item_price
@@ -584,8 +584,21 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 }                
                 elseif ($table_name == 'detail_price_lists')
                     $v_table_name = 'v_detail_price_lists';
-                elseif ($table_name == 'inventory_stock')
-                    $v_table_name = 'v_inventory_stock';                
+                elseif ($table_name == 'inventory_stock'){
+                    $v_table_name = 'v_inventory_stock';
+                    if ($_GET['inventory_id'] == 'SalesI'){
+                        if ($Where == '')
+                            $Where = ' WHERE Quantity_for_sale > 0 ';
+                        else
+                            $Where.= ' AND Quantity_for_sale > 0 ';
+                    } else if ($_GET['inventory_id'] == 'RentI'){
+                        if ($Where == '')
+                            $Where = ' WHERE Total_quantity > 0 ';
+                        else
+                            $Where.= ' AND Total_quantity > 0 '; 
+                    }
+                }
+                                
                 else
                     $v_table_name = $table_name;
                 // 3. Consulta para obtener los DATOS PAGINADOS
@@ -822,6 +835,9 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                         $miniaturaj =  str_replace("avif", "jpg", $miniaturaj);
                         upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj);
                         $stmt->bindValue(":" . $campo, $valor);
+                    }
+                    else{
+                        $stmt->bindValue(":" . $campo, '');
                     }
                 }
                 else{
@@ -1246,7 +1262,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
             }               
 
             $query = "DELETE FROM $table_name WHERE $Where";
-            echo $query;
+            //echo $query;
             $stmt = $db->prepare($query);
             $Id1 = 0;
             $Id2 = 0;
@@ -2915,22 +2931,39 @@ function distance_charge($table_name,$db, $method, $id, $data){
                         $Zip =  $data['Zip'];
                         $Distance =  $data['Distance'];
                         
-                    }           
-                    //echo " ** $Distance **";
+                    }
+
                     $total_millas = 0;
-                    if ($Distance==1){
-                        //die("$ZIPO,$CONO $ZIPD,$COND");
-                        $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND");
-                        if (str_starts_with($total_millas, 'Error')) {
-                            echo "Se detectó un error.";
-                        }
-                        else{
-                            $total_millas = str_replace(" mi", "", $total_millas);
-                            $total_millas = str_replace(",", "", $total_millas);
-                            $total_millas = $total_millas * 1;
-                        }
-                        //$total_millas = 35; //AQUI VA LA FUNCION DE GOOGLE MAPS PARA SABER LAS MILLAS
-                        //die( $total_millas);
+                    $costo_total = 0;
+                    //die("$ZIPO,$CONO $ZIPD,$COND");
+                    $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND");
+                    if (str_starts_with($total_millas, 'Error')) {
+                        echo "Se detectó un error.";
+                    }
+                    else{
+                        $total_millas = str_replace(" mi", "", $total_millas);
+                        $total_millas = str_replace(",", "", $total_millas);
+                        $total_millas = $total_millas * 1;
+                    }
+                    //$total_millas = 35; //AQUI VA LA FUNCION DE GOOGLE MAPS PARA SABER LAS MILLAS
+                    //die( $total_millas);                    
+                    if ($Zip == 1){
+                        $query = "SELECT Charge, Minimun, FlatTax FROM distance_charges_zip_code WHERE CP = :zip";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':zip', $ZIPD, PDO::PARAM_STR);
+                        $stmt->execute();
+                        //$costo_extra = $stmt->fetchColumn();
+                        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($data) {
+                            // Ahora accedes a cada valor por su nombre
+                            $costo_total =  $data['Charge'];
+                        } 
+                    }
+                    //echo " ** $Distance **";
+                    
+
+                    if ($Distance==1 AND $costo_total == 0){
+
 
                     // 1. Consultamos los rangos ordenados
                         $query = "SELECT MinM, MaxM, ChargeD, ChargeType 
@@ -2980,6 +3013,9 @@ function distance_charge($table_name,$db, $method, $id, $data){
                         //$costo_total;
                     }
 
+
+
+
                     if ($CONO =='MX'){
                         $TaxRate = '0.16';
                     }else{
@@ -3000,6 +3036,20 @@ function distance_charge($table_name,$db, $method, $id, $data){
 
                     }
 
+
+                    if ($costo_total == 0){
+                        $respuesta = [
+                            "status" => "false",
+                            "total_millas" => $total_millas,
+                            "costo_total" => round($costo_total, 2),
+                            "taxrate" => $TaxRate
+                        ];
+
+                        echo json_encode(array(
+                            "cost" => $respuesta
+                        ));  
+                        die();
+                    }                    
 
                     $respuesta = [
                         "status" => "success",
@@ -3057,7 +3107,107 @@ function distance_charge($table_name,$db, $method, $id, $data){
     
 }
 
-function calcularCostoEstanciaPHP($jsonConfig, $inicio, $fin) {
+
+function calcularCostoEstanciaPHP(string $json, string $fechahorainicio, string $fechahoratermino): float
+{
+    $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+    if (!isset($data['pasos']) || !is_array($data['pasos'])) {
+        throw new InvalidArgumentException('El JSON debe incluir un arreglo "pasos".');
+    }
+
+    $inicio = new DateTimeImmutable($fechahorainicio);
+    $termino = new DateTimeImmutable($fechahoratermino);
+    $segundos = $termino->getTimestamp() - $inicio->getTimestamp();
+
+    if ($segundos <= 0) {
+        throw new InvalidArgumentException('La fecha de término debe ser posterior a la fecha de inicio.');
+    }
+
+    $horasEstancia = $segundos / 3600;
+    $horasPorUnidad = [
+        'hora' => 1,
+        'horas' => 1,
+        'dia' => 24,
+        'dias' => 24,
+        'semana' => 168,
+        'semanas' => 168,
+    ];
+
+    $segmentos = [];
+    $inicioSegmento = 0.0;
+
+    foreach ($data['pasos'] as $paso) {
+        if (!isset($paso['tipo'], $paso['caso'], $paso['precio'])) {
+            throw new InvalidArgumentException('Cada paso debe incluir "caso", "tipo" y "precio".');
+        }
+
+        $finSegmento = INF;
+
+        if ($paso['tipo'] === 'hasta') {
+            $unidad = $paso['unidad'] ?? '';
+            if (!isset($horasPorUnidad[$unidad]) || !isset($paso['cantidad'])) {
+                throw new InvalidArgumentException('Unidad o cantidad inválida en un paso "hasta".');
+            }
+
+            $finSegmento = (float) $paso['cantidad'] * $horasPorUnidad[$unidad];
+        }
+
+        if ((int) $paso['caso'] === 2) {
+            $unidad = $paso['cada']['unidad'] ?? '';
+            $cantidad = $paso['cada']['cantidad'] ?? null;
+
+            if (!isset($horasPorUnidad[$unidad]) || !is_numeric($cantidad) || (float) $cantidad <= 0) {
+                throw new InvalidArgumentException('El paso "cada" debe tener una cantidad y unidad válidas.');
+            }
+
+            $segmentos[] = [
+                'inicio' => $inicioSegmento,
+                'fin' => $finSegmento,
+                'precio' => (float) $paso['precio'],
+                'periodo' => (float) $cantidad * $horasPorUnidad[$unidad],
+            ];
+
+            $inicioSegmento = $finSegmento;
+        } elseif ($paso['tipo'] !== 'cada') {
+            $segmentos[] = [
+                'inicio' => $inicioSegmento,
+                'fin' => $finSegmento,
+                'precio' => (float) $paso['precio'],
+                'periodo' => null,
+            ];
+
+            $inicioSegmento = $finSegmento;
+        }
+    }
+
+    if ($segmentos === []) {
+        throw new InvalidArgumentException('No hay pasos de precio para calcular.');
+    }
+
+    $total = 0.0;
+
+    foreach ($segmentos as $segmento) {
+        if ($horasEstancia <= $segmento['inicio']) {
+            break;
+        }
+
+        $horasEnSegmento = min($horasEstancia, $segmento['fin']);
+
+        if ($segmento['periodo'] !== null) {
+            $periodos = ceil(
+                ($horasEnSegmento - $segmento['inicio']) / $segmento['periodo'] - 1e-9
+            );
+            $total += $segmento['precio'] * $periodos;
+        } else {
+            $total += $segmento['precio'];
+        }
+    }
+
+    return $total;
+}
+
+function calcularCostoEstanciaPHP_($jsonConfig, $inicio, $fin) {
     $configTotal = is_string($jsonConfig) ? json_decode($jsonConfig, true) : $jsonConfig;
     if (empty($configTotal)) return 0;
 
@@ -3535,14 +3685,410 @@ function sales($table_name,$db, $method, $id, $data){
 } 
 
 
+function banner_images($db, $method, $id, $data){
+    if ($method === 'GET') {
+        if ($id !== null) {
+            $bannerId = filter_var($id, FILTER_VALIDATE_INT);
+            if ($bannerId === false || $bannerId < 1) {
+                http_response_code(400);
+                echo json_encode(['status' => 'error', 'message' => 'ID de banner no válido.']);
+                return;
+            }
+
+            $stmt = $db->prepare('SELECT Id, Orden, Image, status, FechaCreacion, FechaCambio FROM banner_images WHERE Id = :id');
+            $stmt->execute([':id' => $bannerId]);
+            $banner = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$banner) {
+                http_response_code(404);
+                echo json_encode(['status' => 'error', 'message' => 'El banner no existe.']);
+                return;
+            }
+
+            echo json_encode(['status' => 'success', 'data' => $banner]);
+            return;
+        }
+
+        $stmt = $db->query('SELECT Id, Orden, Image, status, FechaCreacion, FechaCambio FROM banner_images ORDER BY Orden IS NULL, Orden ASC, Id ASC');
+        echo json_encode(['status' => 'success', 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        return;
+    }
+
+    if ($method === 'POST' || $method === 'PUT') {
+        $bannerId = $method === 'PUT' ? filter_var($id, FILTER_VALIDATE_INT) : 0;
+        if ($method === 'PUT' && ($bannerId === false || $bannerId < 1)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'ID de banner no válido.']);
+            return;
+        }
+
+        $order = filter_var($data->Orden ?? null, FILTER_VALIDATE_INT);
+        $image = trim((string) ($data->Image ?? ''));
+        $status = (string) ($data->status ?? 'pending');
+        if ($order === false || $order < 0) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'El orden debe ser un número entero igual o mayor que cero.']);
+            return;
+        }
+        if ($image === '' || strlen($image) > 255 || basename($image) !== $image || !preg_match('/^[a-zA-Z0-9_.-]+\\.avif$/', $image)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Nombre de imagen no válido.']);
+            return;
+        }
+        if (!in_array($status, ['active', 'pending'], true)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Estado de banner no válido.']);
+            return;
+        }
+
+        try {
+            if ($method === 'POST') {
+                $stmt = $db->prepare(
+                    'INSERT INTO banner_images (Orden, Image, status, FechaCreacion, FechaCambio)
+                     VALUES (:orden, :imagen, :status, NOW(), NOW())'
+                );
+                $stmt->execute([':orden' => $order, ':imagen' => $image, ':status' => $status]);
+                $bannerId = (int) $db->lastInsertId();
+            } else {
+                $checkStmt = $db->prepare('SELECT Id FROM banner_images WHERE Id = :id');
+                $checkStmt->execute([':id' => $bannerId]);
+                if (!$checkStmt->fetchColumn()) {
+                    http_response_code(404);
+                    echo json_encode(['status' => 'error', 'message' => 'El banner no existe.']);
+                    return;
+                }
+
+                $stmt = $db->prepare(
+                    'UPDATE banner_images
+                     SET Orden = :orden, Image = :imagen, status = :status, FechaCambio = NOW()
+                     WHERE Id = :id'
+                );
+                $stmt->execute([':orden' => $order, ':imagen' => $image, ':status' => $status, ':id' => $bannerId]);
+            }
+
+            http_response_code($method === 'POST' ? 201 : 200);
+            echo json_encode(['status' => 'success', 'id' => $bannerId]);
+        } catch (PDOException $e) {
+            error_log('Error al guardar banner: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'No se pudo guardar el banner.']);
+        }
+        return;
+    }
+
+    if ($method === 'DELETE') {
+        $bannerId = filter_var($id, FILTER_VALIDATE_INT);
+        if ($bannerId === false || $bannerId < 1) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'ID de banner no válido.']);
+            return;
+        }
+
+        try {
+            $stmt = $db->prepare('DELETE FROM banner_images WHERE Id = :id');
+            $stmt->execute([':id' => $bannerId]);
+            if ($stmt->rowCount() === 0) {
+                http_response_code(404);
+                echo json_encode(['status' => 'error', 'message' => 'El banner no existe.']);
+                return;
+            }
+
+            echo json_encode(['status' => 'success', 'message' => 'Banner eliminado.']);
+        } catch (PDOException $e) {
+            error_log('Error al eliminar banner: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'No se pudo eliminar el banner.']);
+        }
+        return;
+    }
+
+    http_response_code(405);
+    echo json_encode(['status' => 'error', 'message' => 'Método HTTP no permitido para este recurso.']);
+}
+
+function blog_posts($table_name, $db, $method, $id, $data, $creatorId){
+    $allowedStatuses = ['borrador', 'publicado', 'archivado'];
+
+    if ($method === 'GET') {
+        if ($id !== null) {
+            $stmt = $db->prepare("SELECT * FROM blog_posts WHERE id = :id");
+            $stmt->execute([':id' => (int) $id]);
+            $post = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$post) {
+                http_response_code(404);
+                echo json_encode(['status' => 'error', 'message' => 'La publicación no existe.']);
+                return;
+            }
+
+            echo json_encode(['status' => 'success', 'data' => $post]);
+            return;
+        }
+
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $limit = 15;
+        $offset = ($page - 1) * $limit;
+        $search = trim((string) ($_GET['search'] ?? ''));
+        $where = '';
+        $params = [];
+
+        if ($search !== '') {
+            $where = ' WHERE titulo LIKE :search_title OR slug LIKE :search_slug';
+            $params[':search_title'] = '%' . $search . '%';
+            $params[':search_slug'] = '%' . $search . '%';
+        }
+
+        $stmt = $db->prepare(
+            "SELECT id, titulo, slug, resumen, imagen_destacada, estado, fecha_publicacion, fecha_creacion, fecha_actualizacion
+             FROM blog_posts{$where}
+             ORDER BY fecha_actualizacion DESC, id DESC
+             LIMIT :limit OFFSET :offset"
+        );
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value, PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM blog_posts{$where}");
+        foreach ($params as $key => $value) {
+            $countStmt->bindValue($key, $value, PDO::PARAM_STR);
+        }
+        $countStmt->execute();
+
+        echo json_encode([
+            'status' => 'success',
+            'data' => $posts,
+            'page' => $page,
+            'total' => (int) $countStmt->fetchColumn(),
+            'limit' => $limit
+        ]);
+        return;
+    }
+
+    if ($method === 'POST' || $method === 'PUT') {
+        $postId = $method === 'PUT' ? (int) $id : 0;
+        if ($method === 'PUT' && $postId < 1) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'ID de publicación no válido.']);
+            return;
+        }
+
+        $title = trim((string) ($data->titulo ?? ''));
+        $summary = trim((string) ($data->resumen ?? ''));
+        $content = (string) ($data->html_contenido ?? '');
+        $status = (string) ($data->estado ?? 'borrador');
+        $image = trim((string) ($data->imagen_destacada ?? ''));
+
+        if ($title === '' || mb_strlen($title) > 255) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'El título es obligatorio y debe tener hasta 255 caracteres.']);
+            return;
+        }
+        if (mb_strlen($summary) > 500) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'El resumen no puede exceder 500 caracteres.']);
+            return;
+        }
+        if (trim($content) === '') {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'El contenido es obligatorio.']);
+            return;
+        }
+        if (!in_array($status, $allowedStatuses, true)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Estado de publicación no válido.']);
+            return;
+        }
+        if ($image !== '' && (basename($image) !== $image || !preg_match('/^[a-zA-Z0-9_.-]+\\.avif$/', $image))) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Nombre de imagen no válido.']);
+            return;
+        }
+
+        $slugSource = trim((string) ($data->slug ?? ''));
+        if ($slugSource === '') {
+            $slugSource = $title;
+        }
+        $transliteratedSlug = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $slugSource);
+        if ($transliteratedSlug === false) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'El slug contiene caracteres no válidos.']);
+            return;
+        }
+        $slugSource = $transliteratedSlug;
+        $slug = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '-', $slugSource), '-'));
+        if ($slug === '') {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'No se pudo generar un slug válido.']);
+            return;
+        }
+        if (strlen($slug) > 255) {
+            $slug = rtrim(substr($slug, 0, 255), '-');
+        }
+
+        $publicationInput = trim((string) ($data->fecha_publicacion ?? ''));
+        $publicationDate = null;
+        if ($publicationInput !== '') {
+            $date = DateTime::createFromFormat('Y-m-d\\TH:i', $publicationInput);
+            $dateErrors = DateTime::getLastErrors();
+            if (!$date || ($dateErrors !== false && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0))) {
+                http_response_code(400);
+                echo json_encode(['status' => 'error', 'message' => 'La fecha de publicación no es válida.']);
+                return;
+            }
+            $publicationDate = $date->format('Y-m-d H:i:s');
+        } elseif ($status === 'publicado') {
+            $publicationDate = date('Y-m-d H:i:s');
+        }
+
+        try {
+            $existsStmt = $db->prepare('SELECT id FROM blog_posts WHERE slug = :slug AND id <> :id LIMIT 1');
+            $existsStmt->execute([':slug' => $slug, ':id' => $postId]);
+            if ($existsStmt->fetchColumn()) {
+                http_response_code(409);
+                echo json_encode(['status' => 'error', 'message' => 'Ya existe una publicación con ese slug.']);
+                return;
+            }
+
+            if ($method === 'POST') {
+                $stmt = $db->prepare(
+                    'INSERT INTO blog_posts (titulo, slug, resumen, html_contenido, imagen_destacada, creador_id, estado, fecha_publicacion)
+                     VALUES (:titulo, :slug, :resumen, :contenido, :imagen, :creador, :estado, :fecha)'
+                );
+                $stmt->execute([
+                    ':titulo' => $title,
+                    ':slug' => $slug,
+                    ':resumen' => $summary !== '' ? $summary : null,
+                    ':contenido' => $content,
+                    ':imagen' => $image !== '' ? $image : null,
+                    ':creador' => $creatorId,
+                    ':estado' => $status,
+                    ':fecha' => $publicationDate
+                ]);
+                $postId = (int) $db->lastInsertId();
+            } else {
+                $checkStmt = $db->prepare('SELECT id FROM blog_posts WHERE id = :id');
+                $checkStmt->execute([':id' => $postId]);
+                if (!$checkStmt->fetchColumn()) {
+                    http_response_code(404);
+                    echo json_encode(['status' => 'error', 'message' => 'La publicación no existe.']);
+                    return;
+                }
+
+                $stmt = $db->prepare(
+                    'UPDATE blog_posts
+                     SET titulo = :titulo, slug = :slug, resumen = :resumen, html_contenido = :contenido,
+                         imagen_destacada = :imagen, estado = :estado, fecha_publicacion = :fecha
+                     WHERE id = :id'
+                );
+                $stmt->execute([
+                    ':titulo' => $title,
+                    ':slug' => $slug,
+                    ':resumen' => $summary !== '' ? $summary : null,
+                    ':contenido' => $content,
+                    ':imagen' => $image !== '' ? $image : null,
+                    ':estado' => $status,
+                    ':fecha' => $publicationDate,
+                    ':id' => $postId
+                ]);
+            }
+
+            http_response_code($method === 'POST' ? 201 : 200);
+            echo json_encode(['status' => 'success', 'id' => $postId, 'slug' => $slug]);
+        } catch (PDOException $e) {
+            error_log('Error al guardar publicación del blog: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'No se pudo guardar la publicación.']);
+        }
+        return;
+    }
+
+    if ($method === 'DELETE') {
+        $postId = (int) $id;
+        if ($postId < 1) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'ID de publicación no válido.']);
+            return;
+        }
+
+        $stmt = $db->prepare("UPDATE blog_posts SET estado = 'archivado' WHERE id = :id");
+        $stmt->execute([':id' => $postId]);
+        if ($stmt->rowCount() === 0) {
+            $checkStmt = $db->prepare('SELECT id FROM blog_posts WHERE id = :id');
+            $checkStmt->execute([':id' => $postId]);
+            if (!$checkStmt->fetchColumn()) {
+                http_response_code(404);
+                echo json_encode(['status' => 'error', 'message' => 'La publicación no existe.']);
+                return;
+            }
+        }
+
+        echo json_encode(['status' => 'success', 'message' => 'Publicación archivada.']);
+        return;
+    }
+
+    http_response_code(405);
+    echo json_encode(['status' => 'error', 'message' => 'Método HTTP no permitido para este recurso.']);
+}
+
+
 function comments_admin($table_name,$db, $method, $id, $data){
     global $IDS;
     switch ($method) {
-        case 'GET': 
+        case 'POST':
+            $customerId = isset($data->customer_id) ? filter_var($data->customer_id, FILTER_VALIDATE_INT) : false;
+            $reviewText = isset($data->review_text) ? trim((string) $data->review_text) : '';
+            $rating = isset($data->rating) ? filter_var($data->rating, FILTER_VALIDATE_INT) : false;
 
+            if (!$customerId || $reviewText === '' || mb_strlen($reviewText, 'UTF-8') > 2000 || $rating === false || $rating < 1 || $rating > 5) {
+                http_response_code(400);
+                echo json_encode(['status' => 'error', 'message' => 'Cliente, comentario y calificación no válidos.']);
+                return;
+            }
+
+            try {
+                $customerStmt = $db->prepare("SELECT firstname, lastname, email FROM sale_customers WHERE id = :id LIMIT 1");
+                $customerStmt->execute([':id' => $customerId]);
+                $customer = $customerStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$customer) {
+                    http_response_code(404);
+                    echo json_encode(['status' => 'error', 'message' => 'El cliente no existe.']);
+                    return;
+                }
+
+                $authorName = trim($customer['firstname'] . ' ' . $customer['lastname']);
+                if ($authorName === '') {
+                    http_response_code(400);
+                    echo json_encode(['status' => 'error', 'message' => 'El cliente no tiene un nombre válido.']);
+                    return;
+                }
+
+                $insertStmt = $db->prepare(
+                    "INSERT INTO sale_reviews (author_name, author_meta, rating, review_text, is_featured, status)
+                     VALUES (:author_name, :author_meta, :rating, :review_text, 0, 'pending')"
+                );
+                $insertStmt->execute([
+                    ':author_name' => $authorName,
+                    ':author_meta' => $customer['email'] ?? '',
+                    ':rating' => $rating,
+                    ':review_text' => $reviewText
+                ]);
+
+                http_response_code(201);
+                echo json_encode(['status' => 'success', 'id' => $db->lastInsertId(), 'message' => 'Comentario agregado.']);
+            } catch (PDOException $e) {
+                error_log('comments_admin create failed: ' . $e->getMessage());
+                http_response_code(500);
+                echo json_encode(['status' => 'error', 'message' => 'No se pudo agregar el comentario.']);
+            }
+            return;
+
+        case 'GET':
 
             $limit = 15;
-            $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+            $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
             $offset = ($page - 1) * $limit;
             $search = isset($_GET['search']) ? $_GET['search'] : '';
             if ($search != ''){
@@ -3592,22 +4138,56 @@ function comments_admin_update($table_name,$db, $method, $id, $data){
     global $IDS;
     switch ($method) {
         case 'POST': 
+            $reviewId = isset($data->id) ? filter_var($data->id, FILTER_VALIDATE_INT) : false;
+            $authorName = isset($data->author_name) ? trim((string) $data->author_name) : '';
+            $authorMeta = isset($data->author_meta) ? trim((string) $data->author_meta) : '';
+            $reviewText = isset($data->review_text) ? trim((string) $data->review_text) : '';
+            $rating = isset($data->rating) ? filter_var($data->rating, FILTER_VALIDATE_INT) : false;
+            $status = isset($data->status) ? (string) $data->status : '';
+            $isFeatured = isset($data->is_featured) ? filter_var($data->is_featured, FILTER_VALIDATE_INT) : false;
 
-            $queryI= "UPDATE sale_reviews SET status  = :status, is_featured = :is_featured WHERE id = :id";
-            
-            $stmt = $db->prepare($queryI);
-            $stmt->bindValue(":status", $data->status);
-            $stmt->bindValue(":is_featured", $data->is_featured);
-            $stmt->bindValue(":id", $data->id);
-            $stmt->execute();            
+            if (!$reviewId || $authorName === '' || mb_strlen($authorName, 'UTF-8') > 255 ||
+                mb_strlen($authorMeta, 'UTF-8') > 255 || $reviewText === '' ||
+                mb_strlen($reviewText, 'UTF-8') > 2000 || $rating === false || $rating < 1 || $rating > 5 ||
+                !in_array($status, ['pending', 'approved', 'rejected'], true) ||
+                !in_array($isFeatured, [0, 1], true)) {
+                http_response_code(400);
+                echo json_encode(['status' => 'error', 'message' => 'Los datos del comentario no son válidos.']);
+                return;
+            }
 
+            try {
+                $query = "UPDATE sale_reviews
+                          SET author_name = :author_name, author_meta = :author_meta,
+                              review_text = :review_text, rating = :rating,
+                              status = :status, is_featured = :is_featured
+                          WHERE id = :id";
+                $stmt = $db->prepare($query);
+                $stmt->execute([
+                    ':author_name' => $authorName,
+                    ':author_meta' => $authorMeta,
+                    ':review_text' => $reviewText,
+                    ':rating' => $rating,
+                    ':status' => $status,
+                    ':is_featured' => $isFeatured,
+                    ':id' => $reviewId
+                ]);
 
-            if ($stmt) {
+                if ($stmt->rowCount() === 0) {
+                    $checkStmt = $db->prepare("SELECT id FROM sale_reviews WHERE id = :id");
+                    $checkStmt->execute([':id' => $reviewId]);
+                    if (!$checkStmt->fetchColumn()) {
+                        http_response_code(404);
+                        echo json_encode(['status' => 'error', 'message' => 'El comentario no existe.']);
+                        return;
+                    }
+                }
                 http_response_code(200);
-                echo json_encode(array("message" => "Registro actualizado."));
-            } else {
-                http_response_code(404);
-                echo json_encode(array("message" => "Registro no encontrado."));
+                echo json_encode(['status' => 'success', 'message' => 'Registro actualizado.']);
+            } catch (PDOException $e) {
+                error_log('comments_admin_update failed: ' . $e->getMessage());
+                http_response_code(500);
+                echo json_encode(['status' => 'error', 'message' => 'No se pudo actualizar el comentario.']);
             }
         break;
         default:

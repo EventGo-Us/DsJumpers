@@ -97,7 +97,7 @@ function edit_form($IdTabla, $Idioma, $Tp,  $BotonesFijos = false,$visible = "di
             <h2 class="h6 mb-0"><?= $t['json_precio_edit'] ?></h2>
             <button type="button" id="edit_btnAplicar" class="btn btn-sm btn-outline-primary"><?= $t['aplicar_json'] ?></button>
           </div>
-          <textarea id="edit_json" class="form-control font-monospace flex-grow-1" rows="10" spellcheck="false"></textarea>
+          
           <div id="edit_jsonErr" class="text-danger small mt-1"></div>
         </div></div>
       </div>

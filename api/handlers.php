@@ -810,9 +810,17 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
 
                 } 
                 else{
-                    $valor = isset($data->{$registro['Campo']}) 
-                        ? htmlspecialchars((string)strip_tags($data->{$registro['Campo']}))
-                        : null;
+
+                    if ($tipocampo == 'hidden' and $registro['Campo'] == 'JsonPrice'){
+                        $valor = isset($data->{$registro['Campo']}) 
+                            ? $data->{$registro['Campo']}
+                            : null;
+                    }
+                    else{
+                        $valor = isset($data->{$registro['Campo']}) 
+                            ? htmlspecialchars((string)strip_tags($data->{$registro['Campo']}))
+                            : null;
+                    }
                 }
 
                 
@@ -874,6 +882,34 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 $Taxable = 0;
                 if (isset($data->{'Taxable'}))
                     $Taxable = 1;
+
+                //Si item prrice existe, actualizar
+                $sqlCheck = "SELECT Id FROM item_prices WHERE Id = :ItemPrice LIMIT 1";
+                $stmtCheck = $db->prepare($sqlCheck);
+                $stmtCheck->bindValue(":ItemPrice", $data->{'ItemPrice'});
+                $stmtCheck->execute();
+
+                $priceRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+                if ($priceRow) {
+                    $sqlUpdate = "UPDATE item_prices SET  JsonPrice = :jsonPrice, FechaCambio = NOW() WHERE Id = :ItemPrice";
+                    $stmtUpdate = $db->prepare($sqlUpdate);
+                    $stmtUpdate->bindValue(":jsonPrice", $data->{'JsonPrice'});
+                    $stmtUpdate->bindValue(":ItemPrice", $data->{'ItemPrice'});
+                    $stmtUpdate->execute();
+
+                    $sqlUpdate = "UPDATE detail_price_lists SET  JsonPrice = :jsonPrice, FechaCambio = NOW() WHERE IdItem = :ItemPrice";
+                    $stmtUpdate = $db->prepare($sqlUpdate);
+                    $stmtUpdate->bindValue(":jsonPrice", $data->{'JsonPrice'});
+                    $stmtUpdate->bindValue(":ItemPrice", $data->{'ItemPrice'});
+                    $stmtUpdate->execute();
+                    
+                }                
+
+
+                http_response_code(200);
+                echo json_encode(array("message" => "Registro insertado."));
+                die();                
 
                 // 1. Validar si existe, recuperar el Id de item_prices, si no insertar
                 $sqlCheck = "SELECT Id FROM item_prices WHERE PriceName = :priceName LIMIT 1";

@@ -1503,7 +1503,13 @@ function inicializarEstadoTabla(IdTabla) {
             else if (tipo === 'hidden') {
                 // Si es hidden, asignamos 
                 //alert(IdSelected)
-                formData[field.name] = IdSelected;
+                if(field.name == 'JsonPrice'){
+                    formData[field.name] = field.value;
+                }else{
+                    formData[field.name] = IdSelected;
+                }
+
+                
             } 
             else {
                 // Para el resto, el valor tal cual
@@ -1542,7 +1548,14 @@ function inicializarEstadoTabla(IdTabla) {
                 setTimeout(() => {
                     showToast('✅ <?php echo Trd(12)?> ' + response.message);
                 }, 500);
-                form[0].reset(); 
+                //form[0].reset(); 
+                // Al hacer reset, quitas también la clase que activa la validación visual global
+                $('#add_'+IdTabla)[0].reset();
+                $('#add_'+IdTabla).removeClass('was-validated');
+                $('#add_'+IdTabla).find('.is-invalid, .error').removeClass('is-invalid error');
+                if (IdTabla =='item_prices'){
+                    $('#btnLimpiar').click();
+                }
             },
             error: function(xhr) {
                 const errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'Error al comunicarse con la API.';
@@ -1896,7 +1909,16 @@ function getRecordData(Id,IdTabla) {
                         
                         //alert(clave+ ":"+valor)
                         //$('#edit_'+clave).val(valor);
-                        input.value = valor;
+                        if (clave=='JsonPrice'){
+
+                            let rawString = $("<div>").html(valor).text(); // Esto convierte &quot; en "
+
+                            input.value = rawString || '';
+                        }
+                        else{
+                            input.value = valor || '';
+                        }
+                        //input.value = valor;
 
 
                     }                    
@@ -1984,19 +2006,20 @@ function getRecordData(Id,IdTabla) {
             ?>
         },
         error: function(xhr, status, error) {
-            /*
+            
             if (IdTabla == 'products_item_price'){
                 //ejecutarFuncion1(); 
-                $('#edit_contenedor-funciones').empty();
-                configTotal = [];
-                ejecutarFuncion1();
-                if (myChart) {myChart.destroy()};
+                //$('#edit_contenedor-funciones').empty();
+                //configTotal = [];
+                //ejecutarFuncion1();
+                //if (myChart) {myChart.destroy()};
+                $('#third_btnLimpiar').click()
                 $('#edit_ItemPrice').closest('form')[0].reset();
                 $('#edit_producto_origen_pl').closest('form')[0].reset();
                 $('#edit_new').val(2);
                 $('#edit_price_name').val($('#edit_Name').val());
             }
-            */
+            
             if (xhr.status === 401) {
                 // console.error('Acceso denegado. Token expirado o inválido.');
                 // Aquí puedes redirigir al login o limpiar el token

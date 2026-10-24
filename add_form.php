@@ -101,7 +101,7 @@ function add_form($IdTabla, $Idioma, $Tp, $BotonesFijos = false){
             <h2 class="h6 mb-0"><?= $t['json_precio'] ?></h2>
             <button type="button" id="btnAplicar" class="btn btn-sm btn-outline-primary"><?= $t['aplicar_json'] ?></button>
           </div>
-          <textarea id="json" class="form-control font-monospace flex-grow-1" rows="10" spellcheck="false"></textarea>
+          
           <div id="jsonErr" class="text-danger small mt-1"></div>
         </div></div>
       </div>

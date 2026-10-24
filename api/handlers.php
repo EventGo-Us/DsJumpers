@@ -882,7 +882,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 $Taxable = 0;
                 if (isset($data->{'Taxable'}))
                     $Taxable = 1;
-
+/*
                 //Si item prrice existe, actualizar
                 $sqlCheck = "SELECT Id FROM item_prices WHERE Id = :ItemPrice LIMIT 1";
                 $stmtCheck = $db->prepare($sqlCheck);
@@ -910,9 +910,9 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 http_response_code(200);
                 echo json_encode(array("message" => "Registro insertado."));
                 die();                
-
+*/
                 // 1. Validar si existe, recuperar el Id de item_prices, si no insertar
-                $sqlCheck = "SELECT Id FROM item_prices WHERE PriceName = :priceName LIMIT 1";
+                $sqlCheck = "SELECT Id FROM item_prices WHERE Id = :priceName LIMIT 1";
                 $stmtCheck = $db->prepare($sqlCheck);
                 $stmtCheck->bindValue(":priceName", $data->{'ItemPrice'});
                 $stmtCheck->execute();

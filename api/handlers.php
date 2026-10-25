@@ -872,126 +872,82 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
         // ------------------------------------------------------------------
         case 'PUT':
         // ------------------------------------------------------------------
+        if ($table_name =='products_item_price'){
+            
+            $Taxable = 0;
+            $IDProducto = 0;
+            if (isset($data->{'Taxable'}))
+                $Taxable = 1;
+            if (isset($data->{'Producto'}))
+                $IDProducto = $data->{'Producto'};            
 
-            if ($table_name =='products_item_price' AND $data->{'new'} == 1 ){
-                if ($data->{'JsonPrice'} == ""){
-                    http_response_code(404);
-                    echo json_encode(array("message" => "No tiene precio definido"));
-                    die();                    
-                }
-                $Taxable = 0;
-                if (isset($data->{'Taxable'}))
-                    $Taxable = 1;
-/*
-                //Si item prrice existe, actualizar
-                $sqlCheck = "SELECT Id FROM item_prices WHERE Id = :ItemPrice LIMIT 1";
-                $stmtCheck = $db->prepare($sqlCheck);
-                $stmtCheck->bindValue(":ItemPrice", $data->{'ItemPrice'});
-                $stmtCheck->execute();
+            $JsonPrice = limpiarJsonDeSaltosDeLinea($data->{'JsonPrice'});
 
-                $priceRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            $PriceName = $data->{'price_name'};
 
-                if ($priceRow) {
-                    $sqlUpdate = "UPDATE item_prices SET  JsonPrice = :jsonPrice, FechaCambio = NOW() WHERE Id = :ItemPrice";
-                    $stmtUpdate = $db->prepare($sqlUpdate);
-                    $stmtUpdate->bindValue(":jsonPrice", $data->{'JsonPrice'});
-                    $stmtUpdate->bindValue(":ItemPrice", $data->{'ItemPrice'});
-                    $stmtUpdate->execute();
-
-                    $sqlUpdate = "UPDATE detail_price_lists SET  JsonPrice = :jsonPrice, FechaCambio = NOW() WHERE IdItem = :ItemPrice";
-                    $stmtUpdate = $db->prepare($sqlUpdate);
-                    $stmtUpdate->bindValue(":jsonPrice", $data->{'JsonPrice'});
-                    $stmtUpdate->bindValue(":ItemPrice", $data->{'ItemPrice'});
-                    $stmtUpdate->execute();
-                    
-                }                
-
-
-                http_response_code(200);
-                echo json_encode(array("message" => "Registro insertado."));
-                die();                
-*/
-                // 1. Validar si existe, recuperar el Id de item_prices, si no insertar
-                $sqlCheck = "SELECT Id FROM item_prices WHERE Id = :priceName LIMIT 1";
-                $stmtCheck = $db->prepare($sqlCheck);
-                $stmtCheck->bindValue(":priceName", $data->{'ItemPrice'});
-                $stmtCheck->execute();
-
-                $priceRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
-
-                if ($priceRow) {
-                    // Si ya existe, recuperamos el ID existente
-                    $IdRecuperado = $priceRow['Id'];
-                } else {
-                    // Si no existe, lo insertamos
-                    $sqlInsert = "INSERT INTO item_prices (PriceName, Taxable, JsonPrice, FechaCreacion, FechaCambio) 
-                                VALUES (:priceName, :taxable, :jsonPrice, NOW(), NOW())";
-                    $stmtInsert = $db->prepare($sqlInsert);
-                    $stmtInsert->bindValue(":priceName", $data->{'ItemPrice'});
-                    $stmtInsert->bindValue(":taxable", $Taxable);
-                    $stmtInsert->bindValue(":jsonPrice", $data->{'JsonPrice'});
-                    $stmtInsert->execute();
-                    
-                    // Recuperamos el lastInsertId inmediatamente después del INSERT
-                    $IdRecuperado = $db->lastInsertId();
-                }
-
-                // 2. Eliminar relaciones anteriores del producto
-                $sqlDelete = "DELETE FROM products_item_price WHERE Producto = :producto";
-                $stmtDelete = $db->prepare($sqlDelete);
-                $stmtDelete->bindValue(":producto", $data->{'Producto'});
-                $stmtDelete->execute();                
-
-                // 3. Insertar la nueva relación usando el ID recuperado (ya sea el existente o el nuevo)
-                $sqlRelacion = "INSERT INTO products_item_price (Producto, ItemPrice, Taxable) 
-                                VALUES (:producto, :itemPrice, :taxable)";
-                $stmtRelacion = $db->prepare($sqlRelacion);
-                $stmtRelacion->bindValue(":producto", $data->{'Producto'});
-                $stmtRelacion->bindValue(":itemPrice", $IdRecuperado);
-                $stmtRelacion->bindValue(":taxable", $Taxable);
-                $stmtRelacion->execute();
-
-                $sqlDelete = "DELETE FROM detail_price_lists WHERE IdItem = :producto";
-                $stmtDelete = $db->prepare($sqlDelete);
-                $stmtDelete->bindValue(":producto", $IdRecuperado);
-                $stmtDelete->execute();
-
-                $query = "select Id from price_lists where Estatus = 1 AND NOW() BETWEEN FechaHoraInicio AND FechaHoraFin";
-                $stmt = $db->prepare($query);
-                $stmt->execute();
-                $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                if ($resultados) {
-                    foreach ($resultados as $registro) {
-                        $sqlPriceList = "INSERT INTO detail_price_lists (IdLista,IdItem,JsonPrice,Estatus_price,FechaCreacion,FechaCambio) 
-                                        VALUES (:idLista,:idItem,:jsonPrice,1,now(),now())";
-                        $sqlPriceList = $db->prepare($sqlPriceList);
-                        $sqlPriceList->bindValue(":idLista", $registro['Id']);
-                        //$sqlPriceList->bindValue(":idItem", $data->{'Producto'});
-                        $sqlPriceList->bindValue(":idItem", $IdRecuperado);
-                        $sqlPriceList->bindValue(":jsonPrice", $data->{'JsonPrice'});
-                        $sqlPriceList->execute();
-                    }
-                }                
-
-                http_response_code(200);
-                echo json_encode(array("message" => "Registro insertado."));
-                die();
+            if ($JsonPrice && strlen($JsonPrice) < 15) {
+                http_response_code(404);
+                echo json_encode(array("message" => "No tiene precio definido o es muy corto"));
+                die();                    
             }
 
-            if ($table_name =='products_item_price' AND $data->{'new'} == 2 ){
-                if ($data->{'JsonPrice'} == ""){
-                    http_response_code(404);
-                    echo json_encode(array("message" => "No tiene precio definido"));
-                    die();                    
-                }
-                $Taxable = 0;
-                if (isset($data->{'Taxable'}))
-                    $Taxable = 1;
+            if ($table_name =='products_item_price' AND $data->{'new'} == 1 ){
+                
+                if ($data->{'ItemPrice'} != ""){
+                        $ItemPrice = $data->{'ItemPrice'};
 
-                // 1. Validar si existe, recuperar el Id de item_prices, si no insertar
+                        $sqlDelete = "DELETE FROM products_item_price WHERE Producto = :producto";
+                        $stmtDelete = $db->prepare($sqlDelete);
+                        $stmtDelete->bindValue(":producto", $IDProducto);
+                        $stmtDelete->execute();
+
+                        $sqlInsert = "INSERT INTO products_item_price (Producto, ItemPrice, Taxable) VALUES (:producto, :itemprice, :taxable)";
+                        $stmtInsert = $db->prepare($sqlInsert);
+                        $stmtInsert->bindValue(":producto", $IDProducto);
+                        $stmtInsert->bindValue(":itemprice", $ItemPrice);
+                        $stmtInsert->bindValue(":taxable", $Taxable);
+                        $stmtInsert->execute();
+                        //echo "INSERT INTO products_item_price (Producto, ItemPrice, Taxable) VALUES ($IDProducto, $ItemPrice, $Taxable)";
+                        http_response_code(200);
+                        echo json_encode(array("message" => "Registro insertado *."));
+                        die();
+
+                }
+                else  if ($data->{'producto_origen_pl'} !=""){
+                    $producto_origen_pl = $data->{'producto_origen_pl'};
+
+                    $sqlCheck = "SELECT ItemPrice FROM products_item_price WHERE Producto = :producto_origen_pl LIMIT 1";
+                    $stmtCheck = $db->prepare($sqlCheck);
+                    $stmtCheck->bindValue(":producto_origen_pl", $producto_origen_pl);
+                    $stmtCheck->execute();
+
+                    $priceRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+                    $ItemPrice = $priceRow['ItemPrice'];
+                    //die("SELECT ItemPrice FROM products_item_price WHERE Producto =".$data->{'producto_origen_pl'}." LIMIT 1");
+                    $sqlDelete = "DELETE FROM products_item_price WHERE Producto = :producto";
+                    $stmtDelete = $db->prepare($sqlDelete);
+                    $stmtDelete->bindValue(":producto", $IDProducto);
+                    $stmtDelete->execute();
+
+                    $sqlInsert = "INSERT INTO products_item_price (Producto, ItemPrice, Taxable) VALUES (:producto, :itemprice, :taxable)";
+                    $stmtInsert = $db->prepare($sqlInsert);
+                    $stmtInsert->bindValue(":producto", $IDProducto);
+                    $stmtInsert->bindValue(":itemprice", $ItemPrice);
+                    $stmtInsert->bindValue(":taxable", $Taxable);
+                    $stmtInsert->execute();
+                    http_response_code(200);
+                    echo json_encode(array("message" => "Registro insertado **."));
+                    die();                    
+
+                }
+
+            }
+            elseif ($table_name =='products_item_price' AND $data->{'new'} == 2 ){
+                //Precio Nuevo
                 $sqlCheck = "SELECT Id FROM item_prices WHERE PriceName = :priceName LIMIT 1";
                 $stmtCheck = $db->prepare($sqlCheck);
-                $stmtCheck->bindValue(":priceName", $data->{'ItemPrice'});
+                $stmtCheck->bindValue(":priceName", $PriceName);
                 $stmtCheck->execute();
 
                 $priceRow = $stmtCheck->fetch(PDO::FETCH_ASSOC);
@@ -1004,9 +960,9 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                     $sqlInsert = "INSERT INTO item_prices (PriceName, Taxable, JsonPrice, FechaCreacion, FechaCambio) 
                                 VALUES (:priceName, :taxable, :jsonPrice, NOW(), NOW())";
                     $stmtInsert = $db->prepare($sqlInsert);
-                    $stmtInsert->bindValue(":priceName", $data->{'price_name'});
+                    $stmtInsert->bindValue(":priceName", $PriceName);
                     $stmtInsert->bindValue(":taxable", $Taxable);
-                    $stmtInsert->bindValue(":jsonPrice", $data->{'JsonPrice'});
+                    $stmtInsert->bindValue(":jsonPrice", $JsonPrice);
                     $stmtInsert->execute();
                     
                     // Recuperamos el lastInsertId inmediatamente después del INSERT
@@ -1016,21 +972,21 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 // 2. Eliminar relaciones anteriores del producto
                 $sqlDelete = "DELETE FROM products_item_price WHERE Producto = :producto";
                 $stmtDelete = $db->prepare($sqlDelete);
-                $stmtDelete->bindValue(":producto", $data->{'Producto'});
+                $stmtDelete->bindValue(":producto", $IDProducto);
                 $stmtDelete->execute();                
 
                 // 3. Insertar la nueva relación usando el ID recuperado (ya sea el existente o el nuevo)
                 $sqlRelacion = "INSERT INTO products_item_price (Producto, ItemPrice, Taxable) 
                                 VALUES (:producto, :itemPrice, :taxable)";
                 $stmtRelacion = $db->prepare($sqlRelacion);
-                $stmtRelacion->bindValue(":producto", $data->{'Producto'});
+                $stmtRelacion->bindValue(":producto", $IDProducto);
                 $stmtRelacion->bindValue(":itemPrice", $IdRecuperado);
                 $stmtRelacion->bindValue(":taxable", $Taxable);
-                $stmtRelacion->execute();
-
-                $sqlDelete = "DELETE FROM detail_price_lists WHERE IdItem = :producto";
+                $stmtRelacion->execute(); 
+                
+                $sqlDelete = "DELETE FROM detail_price_lists WHERE IdItem = :idItem";
                 $stmtDelete = $db->prepare($sqlDelete);
-                $stmtDelete->bindValue(":producto", $IdRecuperado);
+                $stmtDelete->bindValue(":idItem", $IdRecuperado);
                 $stmtDelete->execute();
 
                 $query = "select Id from price_lists where Estatus = 1 AND NOW() BETWEEN FechaHoraInicio AND FechaHoraFin";
@@ -1044,17 +1000,17 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                         $sqlPriceList = $db->prepare($sqlPriceList);
                         $sqlPriceList->bindValue(":idLista", $registro['Id']);
                         $sqlPriceList->bindValue(":idItem", $IdRecuperado);
-                        $sqlPriceList->bindValue(":jsonPrice", $data->{'JsonPrice'});
+                        $sqlPriceList->bindValue(":jsonPrice", $JsonPrice);
                         $sqlPriceList->execute();
                     }
                 }
 
                 http_response_code(200);
-                echo json_encode(array("message" => "Registro insertado."));
+                echo json_encode(array("message" => "Registro insertado ***."));
                 die();
-            }            
+            }           
 
-
+        }
 
             // UPDATE (Actualizar un registro existente)
             $query = "SELECT Campo, TipoCampo, Requerido,TipoCampo FROM modal_edit WHERE Tabla = ?  ORDER BY Id";

@@ -366,10 +366,10 @@ div[id^="dropzone_"]:hover {
   <div class="mb-5">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="h4 mb-0"><?= $t['funcion_precios_third'] ?></h1>
-      <button type="button" id="third_btnLimpiar" class="btn btn-outline-danger btn-sm"><?= $t['limpiar'] ?></button>
+      <button type="button" id="third_btnClear" class="btn btn-outline-danger btn-sm" onclick="third_clear()"><?= $t['limpiar'] ?></button>
     </div>
     <div id="third_casos" class="vstack gap-2 mb-4"></div>
-    <div class="row g-3 mb-3" id = "edit_contenedor-funciones">
+    <div class="row g-3 mb-3">
       <div class="col-lg-12">
         <div class="card"><div class="card-body">
           <div class="d-flex justify-content-between mb-2">
@@ -1991,12 +1991,12 @@ function getRecordData(Id,IdTabla) {
                 //alert(0)   
                 //alert($('#edit_JsonPrice').val())            
                 $('#third_btnAplicar').click();  
-                //const contenedor = document.getElementById('edit_contenedor-funciones');
-                //const inputs = contenedor.querySelectorAll('input');
-                //inputs.forEach(input => {
-                //    input.disabled = true;
-                //});
-                //$('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);
+                const contenedor = document.getElementById('third_casos');
+                const inputs = contenedor.querySelectorAll('input');
+                inputs.forEach(input => {
+                    input.disabled = true;
+                });
+                $('#third_casos').find('input, select, textarea').prop('disabled', true);
                 
             }
             <?php 
@@ -2009,7 +2009,7 @@ function getRecordData(Id,IdTabla) {
             
             if (IdTabla == 'products_item_price'){
                 //ejecutarFuncion1(); 
-                //$('#edit_contenedor-funciones').empty();
+                //$('#third_casos').empty();
                 //configTotal = [];
                 //ejecutarFuncion1();
                 //if (myChart) {myChart.destroy()};
@@ -3109,7 +3109,20 @@ function third_refresh(){
 function third_reset(tail){
   $('#third_casos').empty(); third_steps=[]; third_stash={i:-1,tail:[]};
   third_buildCase(0,tail); third_refresh();
+  
+    //$('#edit_ItemPrice').closest('form')[0].reset();
+    //$('#edit_producto_origen_pl').closest('form')[0].reset();  
 }
+
+function third_clear(){
+    third_reset();
+  
+    $('#edit_ItemPrice').closest('form')[0].reset();
+    $('#edit_producto_origen_pl').closest('form')[0].reset();
+    $('#edit_new').val(2);
+    $('#edit_price_name').val($('#edit_Name').val());
+}
+
 
 // ==========================================
 // INICIALIZACIÓN
@@ -3201,6 +3214,23 @@ $(function(){
                 'Authorization': 'Bearer ' + TOKEN 
             },
             success: function(response) {
+                //$('#edit_ItemPrice').val('').trigger('change');
+
+                // Opción para Choices.js:
+                //const selectElement = document.querySelector('#edit_ItemPrice');
+                
+                if (myChoicesInstances['edit_ItemPrice']) {
+                    // Opción A: Establecer el valor a vacío utilizando setChoiceByValue
+                    myChoicesInstances['edit_ItemPrice'].setChoiceByValue('');
+                    
+                    // O alternativamente, si prefieres limpiar ítems activos:
+                    // myChoicesInstances['edit_producto_origen_pl'].removeActiveItems();
+                }                
+
+
+                // O si prefieres asegurarte de limpiar también el select nativo por debajo:
+                $('#edit_ItemPrice').val('');                
+                
                 //console.log('Datos del registro:', response);
                 Object.entries(response).forEach(([clave, valor]) => {
 
@@ -3208,26 +3238,29 @@ $(function(){
                     //alert(clave)
                     switch (clave) {
                     case 'ItemPrice':
-                            const instance = myChoicesInstances["edit_" + clave];
-                            if (instance) {
-                                instance.setChoiceByValue(String(valor));
-                            } else if (input) {
-                                input.value = String(valor);
-                                input.dispatchEvent(new Event('change', { bubbles: true }));
-                            }
+                            //const instance = myChoicesInstances["edit_" + clave];
+                            //if (instance) {
+                            //    instance.setChoiceByValue(String(valor));
+                            //} else if (input) {
+                            //    input.value = String(valor);
+                            //    input.dispatchEvent(new Event('change', { bubbles: true }));
+                            //}
                         break;
                     case 'JsonPrice':
                             $('#third_btnLimpiar').click();   
                             //ejecutarFuncion1();
                             input.value = valor || '';
-                            $('#third_btnAplicar').click();   
+                            $('#third_btnAplicar').click();
+
+                            $('#edit_new').val(1);
+                            
                             //cargar();
-                    //const contenedor = document.getElementById('edit_contenedor-funciones');
-                    //const inputs = contenedor.querySelectorAll('input');
-                    //inputs.forEach(input => {
-                    //    input.disabled = true;
-                    //});
-                    //$('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);                          
+                            const contenedor = document.getElementById('third_casos');
+                            const inputs = contenedor.querySelectorAll('input');
+                            inputs.forEach(input => {
+                                input.disabled = true;
+                            });
+                            $('#third_casos').find('input, select, textarea').prop('disabled', true);                          
                         break;
                     case 'Taxable':
                             input.checked = (valor == 1);
@@ -3261,7 +3294,18 @@ $(function(){
                 'Authorization': 'Bearer ' + TOKEN 
             },
             success: function(response) {
-                //console.log('Datos del registro:', response);
+                // Opción para Choices.js:
+                if (myChoicesInstances['edit_producto_origen_pl']) {
+                    // Opción A: Establecer el valor a vacío utilizando setChoiceByValue
+                    myChoicesInstances['edit_producto_origen_pl'].setChoiceByValue('');
+                    
+                    // O alternativamente, si prefieres limpiar ítems activos:
+                    // myChoicesInstances['edit_producto_origen_pl'].removeActiveItems();
+                }
+
+                // O si prefieres asegurarte de limpiar también el select nativo por debajo:
+                $('#edit_producto_origen_pl').val('');
+
                 Object.entries(response).forEach(([clave, valor]) => {
 
                 const input = document.getElementById("edit_"+clave);
@@ -3271,14 +3315,15 @@ $(function(){
                             $('#third_btnLimpiar').click();   
                             //ejecutarFuncion1();
                             input.value = valor || '';
-                            $('#third_btnAplicar').click();   
+                            $('#third_btnAplicar').click(); 
+                            $('#edit_new').val(1);  
                             //cargar();
-                    //const contenedor = document.getElementById('edit_contenedor-funciones');
-                    //const inputs = contenedor.querySelectorAll('input');
-                    //inputs.forEach(input => {
-                    //    input.disabled = true;
-                    //});
-                    //$('#edit_contenedor-funciones').find('input, select, textarea').prop('disabled', true);                           
+                            const contenedor = document.getElementById('third_casos');
+                            const inputs = contenedor.querySelectorAll('input');
+                            inputs.forEach(input => {
+                                input.disabled = true;
+                            });
+                            $('#third_casos').find('input, select, textarea').prop('disabled', true);                            
                         break;
                     case 'Taxable':
                             input.checked = (valor == 1);
@@ -3357,7 +3402,7 @@ const generarCodigoAlfanumerico = () => {
 
 
 
-<?php if ($IdTabla == 'products'){?>
+<?php if ($IdTabla == 'productss'){?>
 
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -3390,7 +3435,7 @@ document.addEventListener('DOMContentLoaded', function () {
         //get_json_price(nuevoValor);
         $('#edit_new').val(1);
         //$('#contenedor-funciones').empty();
-        //$('#edit_contenedor-funciones').empty();        
+        //$('#third_casos').empty();        
         $('#third_btnLimpiar').click();   
     });
 

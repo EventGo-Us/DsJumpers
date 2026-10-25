@@ -209,4 +209,33 @@ function get_distance($ORG,$DST){
     }
 
 }
+
+
+function limpiarJsonDeSaltosDeLinea($jsonString) {
+    // 1. Decodificar el JSON a un array asociativo
+    $datos = json_decode($jsonString, true);
+    
+    // Si hay un error de sintaxis en el JSON, devolvemos el original o false
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return $jsonString; 
+    }
+
+    // 2. Función recursiva para recorrer el array y limpiar los strings
+    $limpiarRecursivo = function(&$valor) use (&$limpiarRecursivo) {
+        if (is_array($valor)) {
+            foreach ($valor as &$item) {
+                $limpiarRecursivo($item);
+            }
+        } elseif (is_string($valor)) {
+            // Reemplazamos \r\n, \n y \r por espacios o los eliminamos (aquí los eliminamos con '')
+            $valor = str_replace(["\r\n", "\n", "\r"], "", $valor);
+        }
+    };
+
+    // Aplicar la limpieza
+    $limpiarRecursivo($datos);
+
+    // 3. Volver a convertir a JSON (mantiene los caracteres sin escapar si usas JSON_UNESCAPED_UNICODE)
+    return json_encode($datos, JSON_UNESCAPED_UNICODE);
+}
 ?>

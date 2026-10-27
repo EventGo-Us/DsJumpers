@@ -18,6 +18,7 @@ $product_id = intval($_POST['product_id'] ?? 0);
 $gallery = $_POST['table'] ?? 'products_images';
 $isBlogImage = $gallery === 'blog';
 $isBannerImage = $gallery === 'banner';
+$isSaleImage = $gallery === 'products_images_sale';
 
 if (!in_array($gallery, ['products_images', 'products_images_sale', 'blog', 'banner'], true)) {
     echo json_encode(['success' => false, 'message' => 'Tabla de imágenes no válida']);
@@ -69,7 +70,17 @@ for ($i = 0; $i < $count; $i++) {
         if (!$isBannerImage) {
             generarThumbnailAVIF($imgOriginal, $destinot, 150);
         }
-        generarNormalAVIF($imgOriginal, $destino, 1200);
+        $normalWidth = $isSaleImage ? imagesx($imgOriginal) : 1200;
+        if (!generarNormalAVIF($imgOriginal, $destino, $normalWidth)) {
+            imagedestroy($imgOriginal);
+            foreach ([$origen, $destino, $destinot, $destinot2] as $temporaryFile) {
+                if (is_file($temporaryFile)) {
+                    unlink($temporaryFile);
+                }
+            }
+            $results[] = ['success' => false, 'message' => "Error al generar la imagen original de $name"];
+            continue;
+        }
         if (!$isBannerImage) {
             generarThumbnailJPG($imgOriginal, $destinot2, 150);
         }
@@ -149,6 +160,11 @@ function upload_Aws($client,$gallery,$normal,$miniatura,$miniaturaj,$originalOnl
             'SourceFile' => 'tmp/'.$normal,
             'ContentType' => 'image/avif'
         ]);
+
+        $originalKey = "$client/$gallery/originals/$normal";
+        if (!$s3Client->doesObjectExist($bucket_name, $originalKey)) {
+            throw new RuntimeException("No se pudo verificar la imagen original $originalKey en R2.");
+        }
         unlink('tmp/'.$normal);
 
         if ($originalOnly) {

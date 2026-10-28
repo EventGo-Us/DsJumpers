@@ -3113,7 +3113,11 @@ function calcularCostoEstanciaPHP(string $json, string $fechahorainicio, string 
     $segundos = $termino->getTimestamp() - $inicio->getTimestamp();
 
     if ($segundos <= 0) {
-        throw new InvalidArgumentException('La fecha de término debe ser posterior a la fecha de inicio.');
+        //throw new InvalidArgumentException('La fecha de término debe ser posterior a la fecha de inicio.');
+        // Se agregan 8 horas a la fecha de término
+        $termino = $termino->modify('+8 hours');
+        // Se recalculan los segundos con la nueva fecha de término
+        $segundos = $termino->getTimestamp() - $inicio->getTimestamp();
     }
 
     $horasEstancia = $segundos / 3600;

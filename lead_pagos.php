@@ -592,7 +592,7 @@ function render_pagos(response){
     $square_account = $stmt->fetch();       
 
 ?>
-    <script type="text/javascript" src="https://sandbox.web.squarecdn.com/v1/square.js"></script>
+    <script type="text/javascript" src="https://web.squarecdn.com/v1/square.js"></script>
     <script>
         const appId = '<?php echo $square_account['Id'];?>';
         const locId = '<?php echo $square_account['LocalId'];?>';

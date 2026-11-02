@@ -192,7 +192,7 @@ div[id^="dropzone_"]:hover {
         include_once 'edit_form.php'; 
 
         include_once 'delete_form.php'; 
-        if ($IdTabla == 'products'){
+        if ($IdTabla == 'products') {
             add_listado($IdTabla);
 ?>
         <div class="container-fluid p-4 bg-white border-0 shadow-sm rounded-4 mb-4" id="add_form_<?php echo $IdTabla?>_clone" style="display: none; max-width: 100%;">
@@ -264,10 +264,68 @@ div[id^="dropzone_"]:hover {
 
 <?php            
 
+            $productEditSections = [
+                ['id' => 'home', 'label' => $isEn ? 'Home' : 'Home', 'icon' => 'fa-home'],
+                ['id' => 'edit_form_products', 'label' => $isEn ? 'Product details' : 'Datos del producto', 'icon' => 'fa-box'],
+                ['id' => 'product_pricing', 'label' => $isEn ? 'Pricing' : 'Precios', 'icon' => 'fa-dollar-sign'],
+                ['id' => 'product_categories', 'panel' => 'listado_products_categories', 'label' => $isEn ? 'Categories' : 'Categorías', 'icon' => 'fa-tags'],
+                ['id' => 'product_images', 'panel' => 'listado_products_images', 'label' => $isEn ? 'Images' : 'Imágenes', 'icon' => 'fa-image'],
+                ['id' => 'product_sale_images', 'panel' => 'listado_products_images_sale', 'label' => $isEn ? 'Sale images' : 'Imágenes de venta', 'icon' => 'fa-images'],
+                ['id' => 'product_videos', 'panel' => 'listado_products_videos', 'label' => $isEn ? 'Videos' : 'Videos', 'icon' => 'fa-video'],
+                ['id' => 'product_packing_list', 'panel' => 'listado_packing_list', 'label' => $isEn ? 'Packing list' : 'Lista de empaque', 'icon' => 'fa-list-check'],
+                ['id' => 'product_related', 'panel' => 'listado_related_products', 'label' => $isEn ? 'Related products' : 'Productos relacionados', 'icon' => 'fa-link'],
+                ['id' => 'product_upselling', 'panel' => 'listado_upselling_products', 'label' => $isEn ? 'Upselling' : 'Ventas adicionales', 'icon' => 'fa-arrow-trend-up'],
+                ['id' => 'product_relationships', 'panel' => 'listado_relationship_products', 'label' => $isEn ? 'Product relationships' : 'Relaciones de productos', 'icon' => 'fa-diagram-project'],
+                ['id' => 'product_costs', 'panel' => 'listado_cost_products', 'label' => $isEn ? 'Costs' : 'Costos', 'icon' => 'fa-coins'],
+                ['id' => 'product_files', 'panel' => 'listado_products_files', 'label' => $isEn ? 'Files' : 'Archivos', 'icon' => 'fa-paperclip'],
+            ];
+?>
+        <style>
+            #products_edit_workspace .product-edit-nav {
+                position: sticky;
+                top: 1rem;
+            }
+            #products_edit_workspace .product-edit-nav .active {
+                color: #fff;
+                background-color: #0d6efd;
+                border-color: #0d6efd;
+            }
+            #products_edit_workspace:not(.product-edit-sidebar-open) #products_edit_content {
+                flex: 0 0 100%;
+                max-width: 100%;
+            }
+        </style>
+        <br><br>
+        <div id="products_edit_workspace" class="row g-3 mb-4">
+            <aside id="products_edit_sidebar" class="col-12 col-md-2" hidden>
+                <nav class="product-edit-nav list-group shadow-sm" aria-label="<?= $isEn ? 'Product sections' : 'Secciones del producto' ?>">
+                    <?php foreach ($productEditSections as $section): ?>
+                        <a href="#<?= $section['id'] ?>"
+                           class="list-group-item list-group-item-action text-start"
+                           data-product-section-button="<?= $section['id'] ?>"
+                           <?= isset($section['panel']) ? 'data-product-panel="' . $section['panel'] . '"' : '' ?>
+                           onclick="showProductEditSection(event, this)">
+                            <i class="fa-solid <?= $section['icon'] ?> me-2" aria-hidden="true"></i><?= $section['label'] ?>
+                        </a>
+                    <?php endforeach; ?>
+                </nav>
+            </aside>
+            <main id="products_edit_content" class="col-12 col-md-9">
+                <div class="d-flex justify-content-end mb-3 d-none" >
+                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                            id="products_edit_sidebar_toggle"
+                            aria-expanded="false"
+                            onclick="toggleProductsEditSidebar()">
+                        <i class="fa-solid fa-angles-right me-1" aria-hidden="true"></i>
+                        <span><?= $isEn ? 'Show menu' : 'Mostrar menú' ?></span>
+                    </button>
+                </div>
+<?php
             edit_form($IdTabla,$Idioma,'I',true);
-
-            echo '<br><h4 class="mb-4">'.Trd(29).'</h4>';
-            echo '<div class="container" id="edit_form_'.$IdTabla.'" style="">';
+?>
+<?php
+            echo '<br><h4 id="product_pricing" class="mb-4">'.Trd(29).'</h4>';
+            echo '<div class="container" id="edit_form_products_price" style="">';
             $TablePrices ='products_item_price';
             ?>
                 <form name="edit_<?php echo $TablePrices?>" id="edit_<?php echo $TablePrices?>" class="needs-validation" novalidate>
@@ -429,10 +487,10 @@ div[id^="dropzone_"]:hover {
                     }
                 </style>';
 
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#listado_' . $Tabla . '" 
-                        aria-expanded="false" 
+                echo '<h4 id="product_categories" class="mb-4 btn-toggle-custom fs-5"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#listado_' . $Tabla . '"
+                        aria-expanded="false"
                         aria-controls="listado_' . $Tabla . '">';
                 echo Trd(30);
                 echo '</h4>';
@@ -588,10 +646,10 @@ div[id^="dropzone_"]:hover {
 
 <?php                
                 $Tabla2 = 'products_images';
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#listado_' . $Tabla2 . '" 
-                        aria-expanded="false" 
+                echo '<h4 id="product_images" class="mb-4 btn-toggle-custom fs-5"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#listado_' . $Tabla2 . '"
+                        aria-expanded="false"
                         aria-controls="listado_' . $Tabla2 . '">';
                 echo Trd(31);
                 echo '</h4>';
@@ -622,7 +680,7 @@ div[id^="dropzone_"]:hover {
 </div>
 <?php
                 $Tabla3 = 'products_images_sale';
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5"
+                echo '<h4 id="product_sale_images" class="mb-4 btn-toggle-custom fs-5"
                     data-bs-toggle="collapse"
                     data-bs-target="#listado_' . $Tabla3 . '"
                     aria-expanded="false"
@@ -683,13 +741,12 @@ div[id^="dropzone_"]:hover {
                 edit_form($Tabla2,$Idioma,'D');
 */
 
-
                 $Tabla22 = 'products_videos';
 
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#listado_' . $Tabla22 . '" 
-                        aria-expanded="false" 
+                echo '<h4 id="product_videos" class="mb-4 btn-toggle-custom fs-5"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#listado_' . $Tabla22 . '"
+                        aria-expanded="false"
                         aria-controls="listado_' . $Tabla22 . '">';
                 echo Trd(72);
                 echo '</h4>';
@@ -699,10 +756,9 @@ div[id^="dropzone_"]:hover {
                 edit_form($Tabla22,$Idioma,'D');
 
 
-
                 $Tabla3 = 'packing_list';
 
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5"
+                echo '<h4 id="product_packing_list" class="mb-4 btn-toggle-custom fs-5"
                     data-bs-toggle="collapse"
                     data-bs-target="#listado_' . $Tabla3 . '"
                     aria-expanded="false"
@@ -736,10 +792,11 @@ div[id^="dropzone_"]:hover {
                 add_listado($Tabla3,'collapse');
                 add_form($Tabla3,$Idioma,'D');
                 edit_form($Tabla3,$Idioma,'D');
+
             $Tabla4 = 'related_products';
-            echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                    data-bs-toggle="collapse" 
-                    data-bs-target="#listado_' . $Tabla4 . '" 
+            echo '<h4 id="product_related" class="mb-4 btn-toggle-custom fs-5"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#listado_' . $Tabla4 . '"
                     aria-expanded="false" 
                     aria-controls="listado_' . $Tabla4 . '"
                     onclick="toggleElementoClone(\'add_form_' . $Tabla4 . '_clone\')">';
@@ -769,11 +826,12 @@ div[id^="dropzone_"]:hover {
                 add_listado($Tabla4,'collapse');
                 add_form($Tabla4,$Idioma,'D');
                 edit_form($Tabla4,$Idioma,'D');                                
+
             $Tabla5 = 'upselling_products';
 
-            echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                    data-bs-toggle="collapse" 
-                    data-bs-target="#listado_' . $Tabla5 . '" 
+            echo '<h4 id="product_upselling" class="mb-4 btn-toggle-custom fs-5"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#listado_' . $Tabla5 . '"
                     aria-expanded="false" 
                     aria-controls="listado_' . $Tabla5 . '"
                     onclick="toggleElementoClone(\'add_form_' . $Tabla5 . '_clone\')">';
@@ -805,11 +863,12 @@ div[id^="dropzone_"]:hover {
                 add_listado($Tabla5,'collapse');
                 add_form($Tabla5,$Idioma,'D');
                 edit_form($Tabla5,$Idioma,'D');
+
             $Tabla6 = 'relationship_products';
 
-            echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                    data-bs-toggle="collapse" 
-                    data-bs-target="#listado_' . $Tabla6 . '" 
+            echo '<h4 id="product_relationships" class="mb-4 btn-toggle-custom fs-5"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#listado_' . $Tabla6 . '"
                     aria-expanded="false" 
                     aria-controls="listado_' . $Tabla6 . ' "
                     onclick="toggleElementoClone(\'add_form_' . $Tabla6 . '_clone\')">';
@@ -841,11 +900,12 @@ div[id^="dropzone_"]:hover {
                 add_listado($Tabla6,'collapse');
                 add_form($Tabla6,$Idioma,'D');
                 edit_form($Tabla6,$Idioma,'D');                
+
             $Tabla7 = 'cost_products';
 
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#listado_' . $Tabla7 . '" 
+                echo '<h4 id="product_costs" class="mb-4 btn-toggle-custom fs-5"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#listado_' . $Tabla7 . '"
                         aria-expanded="false" 
                         aria-controls="listado_' . $Tabla7 . '">';
                 echo Trd(36);
@@ -855,11 +915,12 @@ div[id^="dropzone_"]:hover {
                 add_listado($Tabla7,'collapse');
                 add_form($Tabla7,$Idioma,'D');
                 edit_form($Tabla7,$Idioma,'D');
+
             $Tabla8 = 'products_files';
 
-                echo '<h4 class="mb-4 btn-toggle-custom fs-5" 
-                        data-bs-toggle="collapse" 
-                        data-bs-target="#listado_' . $Tabla8 . '" 
+                echo '<h4 id="product_files" class="mb-4 btn-toggle-custom fs-5"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#listado_' . $Tabla8 . '"
                         aria-expanded="false" 
                         aria-controls="listado_' . $Tabla8 . '">';
                 echo Trd(37);
@@ -870,7 +931,7 @@ div[id^="dropzone_"]:hover {
                 edit_form($Tabla8,$Idioma,'D');
 
 
-            echo '</div>';  
+            echo '</div></main></div>';
 
             delete_form($IdTabla);
             delete_form($Tabla);
@@ -1266,12 +1327,64 @@ function inicializarEstadoTabla(IdTabla) {
         $("#edit_form_"+Id).hide();
         if (Id=='products'){
             $("#add_form_products_clone_edit").hide();
+            setProductsEditSidebarVisible(false);
         }
         if (Id=='item_prices'){
             $("#proyeccion_item_prices").hide();
         }
 
     }    
+
+    function showProductEditSection(event, link) {
+        if (event) {
+            event.preventDefault();
+        }
+        const target = document.getElementById(link.hash.slice(1));
+        if (!target) {
+            console.error('No se encontró el destino de navegación:', link.hash);
+            return;
+        }
+
+        const panelId = link.dataset.productPanel;
+        const panel = panelId ? document.getElementById(panelId) : null;
+        const scrollToTarget = function() {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        if (panel && panel.classList.contains('collapse') && !panel.classList.contains('show')) {
+            if (window.bootstrap && bootstrap.Collapse) {
+                panel.addEventListener('shown.bs.collapse', scrollToTarget, { once: true });
+                bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false }).show();
+            } else {
+                panel.classList.add('show');
+                scrollToTarget();
+            }
+        } else {
+            scrollToTarget();
+        }
+
+        $('#products_edit_sidebar [data-product-section-button]').removeClass('active');
+        $(link).addClass('active');
+    }
+
+    function setProductsEditSidebarVisible(visible) {
+        const $workspace = $('#products_edit_workspace');
+        $workspace.toggleClass('product-edit-sidebar-open', visible);
+        $('#products_edit_sidebar').prop('hidden', !visible);
+        $('#products_edit_sidebar_toggle')
+            .attr('aria-expanded', String(visible))
+            .find('span').text(visible
+                ? '<?= $isEn ? "Hide menu" : "Ocultar menú" ?>'
+                : '<?= $isEn ? "Show menu" : "Mostrar menú" ?>');
+        $('#products_edit_sidebar_toggle i')
+            .toggleClass('fa-angles-left', visible)
+            .toggleClass('fa-angles-right', !visible);
+    }
+
+    function toggleProductsEditSidebar() {
+        const isVisible = !document.getElementById('products_edit_sidebar').hidden;
+        setProductsEditSidebarVisible(!isVisible);
+    }
 
     function AgregarRegistro(Id){
         $("#listado_"+Id).hide();
@@ -1616,6 +1729,9 @@ function inicializarEstadoTabla(IdTabla) {
                     $("#listado_"+IdTabla).show();
                     $("#edit_form_"+IdTabla).hide();
                     form[0].reset(); 
+                    if (IdTabla == 'products') {
+                        setProductsEditSidebarVisible(false);
+                    }
                 }
                 setTimeout(() => {
                     showToast('✅ <?php echo Trd(14)?> ' + response.message);
@@ -1625,6 +1741,9 @@ function inicializarEstadoTabla(IdTabla) {
             error: function(xhr) {
                 $("#listado_"+IdTabla).show();
                 $("#edit_form_"+IdTabla).hide();                
+                if (IdTabla == 'products') {
+                    setProductsEditSidebarVisible(false);
+                }
                 const errorMessage = xhr.responseJSON ? xhr.responseJSON.message : 'Error al comunicarse con la API.';
                 setTimeout(() => {
                     showToast('❌ <?php echo Trd(15)?> ' + errorMessage);
@@ -1802,6 +1921,7 @@ var queryUrl = API_BASE_URL + IdTabla + '/' +
 function getRecordData(Id,IdTabla) {
     if (IdTabla == 'products'){
         IdSelected = Id;
+        setProductsEditSidebarVisible(true);
         //alert(Id)
         $('#product_id').val(Id)
         loadGallery('products_images');
@@ -1834,6 +1954,9 @@ function getRecordData(Id,IdTabla) {
 
     $("#listado_"+IdTabla).hide();
     $("#edit_form_"+IdTabla).show();
+    if (IdTabla == 'products') {
+        showProductEditSection(null, $('#products_edit_sidebar [data-product-section-button="edit_form_products"]')[0]);
+    }
     //alert(IdTabla)
     $.ajax({
         url: API_BASE_URL + IdTabla+'/' + Id,
@@ -2080,6 +2203,9 @@ function deleteRecord(Id,IdTabla) {
             }),
             success: function(response) {
                 listado(IdTabla);
+                if (IdTabla == 'products') {
+                    setProductsEditSidebarVisible(false);
+                }
                 console.log('Registro borrado:', response.message);
                 setTimeout(() => {
                     showToast('✅ <?php echo Trd(16)?> ' + response.message);

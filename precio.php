@@ -28,6 +28,7 @@ $t = [
     'fecha_hora_termino' => $isEn ? 'End date and time' : 'Fecha y hora de término',
     'calcular' => $isEn ? 'Calculate' : 'Calcular',
     'precio_estancia' => $isEn ? 'Stay price:' : 'Precio de la estancia:',
+    'calcular_siguiente_periodo' => $isEn ? 'Calculate next period' : 'Calcular siguiente periodo',
     'error_fechas' => $isEn ? 'Enter valid dates. The end must be after the start.' : 'Ingresa fechas válidas. El término debe ser posterior al inicio.',
     'error_sin_precio' => $isEn ? 'Define the pricing steps before calculating.' : 'Define los pasos del precio antes de calcular.',
 ];
@@ -92,10 +93,14 @@ $t = [
         <div class="card h-100"><div class="card-body d-flex flex-column">
           <div class="d-flex justify-content-between mb-2">
             <h2 class="h6 mb-0"><?= $t['json_precio'] ?></h2>
-            <button type="button" id="btnAplicar" class="btn btn-sm btn-outline-primary"><?= $t['aplicar_json'] ?></button>
+            <div class="d-flex gap-2">
+              <button type="button" id="btnCalcularSiguientePeriodo" class="btn btn-sm btn-outline-success"><?= $t['calcular_siguiente_periodo'] ?></button>
+              <button type="button" id="btnAplicar" class="btn btn-sm btn-outline-primary"><?= $t['aplicar_json'] ?></button>
+            </div>
           </div>
           <textarea id="json" class="form-control font-monospace flex-grow-1" rows="10" spellcheck="false"></textarea>
           <div id="jsonErr" class="text-danger small mt-1"></div>
+          <div id="resultadoSiguientePeriodo" class="small mt-2" role="status" aria-live="polite"></div>
         </div></div>
       </div>
     </div>  
@@ -291,6 +296,9 @@ const I18N = <?= json_encode([
     'err_missing_pasos' => $isEn ? 'Missing "pasos" array' : 'Falta el arreglo "pasos"',
     'err_invalid_json' => $isEn ? 'Invalid JSON: ' : 'JSON inválido: ',
     'stay_price' => $isEn ? 'Stay price:' : 'Precio de la estancia:',
+    'first_period' => $isEn ? 'First period:' : 'Primer periodo:',
+    'next_period' => $isEn ? 'Next period:' : 'Siguiente periodo:',
+    'error_no_next_period' => $isEn ? 'The JSON does not define a next priced period.' : 'El JSON no define un siguiente periodo con precio.',
     'error_dates' => $isEn ? 'Enter valid dates. The end must be after the start.' : 'Ingresa fechas válidas. El término debe ser posterior al inicio.',
     'error_no_price' => $isEn ? 'Define the pricing steps before calculating.' : 'Define los pasos del precio antes de calcular.',
 ], JSON_UNESCAPED_UNICODE) ?>;
@@ -335,6 +343,38 @@ function calculateStayPrice(requestJson){
   if(!out.length)throw new Error(I18N.error_no_price);
   const hours=(end.getTime()-start.getTime())/3600000;
   return price(out,hours);
+}
+
+function calculateNextPeriodPrice(json){
+  const data=JSON.parse(json);
+  if(!data||!Array.isArray(data.pasos))throw new Error(I18N.err_missing_pasos);
+
+  const {out}=segs(data.pasos);
+  if(!out.length)throw new Error(I18N.error_no_price);
+
+  const first=out[0];
+  const firstPeriodEnd=Math.min(first.S+(first.N||Infinity),first.E);
+  if(!Number.isFinite(firstPeriodEnd)||firstPeriodEnd<=first.S){
+    throw new Error(I18N.error_no_next_period);
+  }
+
+  const firstPeriodPrice=price(out,firstPeriodEnd);
+  const next=out.find((segment,index)=>index>0&&segment.S>=firstPeriodEnd-1e-9);
+  let nextPeriodEnd;
+
+  if(next){
+    nextPeriodEnd=next.N
+      ?Math.min(next.S+next.N,next.E)
+      :next.S+1/3600;
+    if(nextPeriodEnd<=next.S)throw new Error(I18N.error_no_next_period);
+  }else if(first.N&&first.E>firstPeriodEnd){
+    nextPeriodEnd=Math.min(firstPeriodEnd+first.N,first.E);
+  }else{
+    throw new Error(I18N.error_no_next_period);
+  }
+
+  const nextPeriodPrice=price(out,nextPeriodEnd)-firstPeriodPrice;
+  return {firstPeriodPrice,nextPeriodPrice};
 }
 
 function sync(row,n){
@@ -462,6 +502,16 @@ $(function(){
       result.removeClass('fw-semibold').addClass('text-danger').text(e.message);
     }
   });
+  $('#btnCalcularSiguientePeriodo').on('click',()=>{
+    const result=$('#resultadoSiguientePeriodo');
+    try{
+      const prices=calculateNextPeriodPrice($('#json').val());
+      result.removeClass('text-danger').addClass('fw-semibold')
+        .text(`${I18N.first_period} $${prices.firstPeriodPrice.toFixed(2)} · ${I18N.next_period} $${prices.nextPeriodPrice.toFixed(2)}`);
+    }catch(e){
+      result.removeClass('fw-semibold').addClass('text-danger').text(e.message);
+    }
+  });
   $('#btnAplicar').on('click',()=>{
     try{
       const o=JSON.parse($('#json').val());
@@ -475,3 +525,174 @@ $(function(){
 </script>
 </body>
 </html>
+
+
+<?php
+
+<?php
+function calculateNextPeriodPrice(string $json): array
+{
+    $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+
+    if (!isset($data['pasos']) || !is_array($data['pasos'])) {
+        throw new InvalidArgumentException('El JSON debe incluir un arreglo "pasos".');
+    }
+
+    $horasPorUnidad = [
+        'hora' => 1,
+        'horas' => 1,
+        'dia' => 24,
+        'dias' => 24,
+        'semana' => 168,
+        'semanas' => 168,
+    ];
+
+    $convertirHoras = static function ($cantidad, $unidad) use ($horasPorUnidad): float {
+        if (
+            !isset($horasPorUnidad[$unidad]) ||
+            !is_numeric($cantidad) ||
+            (float) $cantidad <= 0
+        ) {
+            throw new InvalidArgumentException('La cantidad o unidad del periodo no es válida.');
+        }
+
+        return (float) $cantidad * $horasPorUnidad[$unidad];
+    };
+
+    $segmentos = [];
+    $inicioSegmento = 0.0;
+
+    foreach ($data['pasos'] as $paso) {
+        if (
+            !is_array($paso) ||
+            !isset($paso['caso'], $paso['tipo'], $paso['precio']) ||
+            !is_numeric($paso['precio'])
+        ) {
+            throw new InvalidArgumentException('Cada paso debe incluir "caso", "tipo" y un "precio" válido.');
+        }
+
+        $finSegmento = INF;
+
+        if ($paso['tipo'] === 'hasta') {
+            $finSegmento = $convertirHoras(
+                $paso['cantidad'] ?? null,
+                $paso['unidad'] ?? ''
+            );
+
+            if ($finSegmento <= $inicioSegmento) {
+                throw new InvalidArgumentException('El límite "hasta" debe ser posterior al inicio del periodo.');
+            }
+        }
+
+        if ((int) $paso['caso'] === 2) {
+            $cada = $paso['cada'] ?? [];
+
+            $segmentos[] = [
+                'inicio' => $inicioSegmento,
+                'fin' => $finSegmento,
+                'precio' => (float) $paso['precio'],
+                'periodo' => $convertirHoras(
+                    $cada['cantidad'] ?? null,
+                    $cada['unidad'] ?? ''
+                ),
+            ];
+
+            $inicioSegmento = $finSegmento;
+        } elseif ($paso['tipo'] !== 'cada') {
+            $segmentos[] = [
+                'inicio' => $inicioSegmento,
+                'fin' => $finSegmento,
+                'precio' => (float) $paso['precio'],
+                'periodo' => null,
+            ];
+
+            $inicioSegmento = $finSegmento;
+        }
+    }
+
+    if ($segmentos === []) {
+        throw new InvalidArgumentException('No hay periodos de precio para calcular.');
+    }
+
+    $calcularPrecioHasta = static function (float $horas) use ($segmentos): float {
+        $total = 0.0;
+
+        foreach ($segmentos as $segmento) {
+            if ($horas <= $segmento['inicio']) {
+                break;
+            }
+
+            $horasEnSegmento = min($horas, $segmento['fin']);
+
+            if ($segmento['periodo'] !== null) {
+                $periodos = ceil(
+                    ($horasEnSegmento - $segmento['inicio']) / $segmento['periodo'] - 1e-9
+                );
+                $total += $segmento['precio'] * $periodos;
+            } else {
+                $total += $segmento['precio'];
+            }
+        }
+
+        return $total;
+    };
+
+    $primerSegmento = $segmentos[0];
+    $finPrimerPeriodo = min(
+        $primerSegmento['inicio'] + ($primerSegmento['periodo'] ?? INF),
+        $primerSegmento['fin']
+    );
+
+    if (!is_finite($finPrimerPeriodo) || $finPrimerPeriodo <= $primerSegmento['inicio']) {
+        throw new InvalidArgumentException('El JSON no define un primer periodo válido.');
+    }
+
+    $precioPrimerPeriodo = $calcularPrecioHasta($finPrimerPeriodo);
+    $siguienteSegmento = null;
+
+    foreach ($segmentos as $indice => $segmento) {
+        if (
+            $indice > 0 &&
+            $segmento['inicio'] >= $finPrimerPeriodo - 1e-9
+        ) {
+            $siguienteSegmento = $segmento;
+            break;
+        }
+    }
+
+    if ($siguienteSegmento !== null) {
+        if ($siguienteSegmento['periodo'] !== null) {
+            $finSiguientePeriodo = min(
+                $siguienteSegmento['inicio'] + $siguienteSegmento['periodo'],
+                $siguienteSegmento['fin']
+            );
+        } else {
+            // Avanza una fracción mínima para incluir el precio fijo del siguiente tramo.
+            $finSiguientePeriodo = $siguienteSegmento['inicio'] + (1 / 3600);
+        }
+
+        if ($finSiguientePeriodo <= $siguienteSegmento['inicio']) {
+            throw new InvalidArgumentException('El JSON no define un siguiente periodo válido.');
+        }
+    } elseif (
+        $primerSegmento['periodo'] !== null &&
+        $primerSegmento['fin'] > $finPrimerPeriodo
+    ) {
+        $finSiguientePeriodo = min(
+            $finPrimerPeriodo + $primerSegmento['periodo'],
+            $primerSegmento['fin']
+        );
+    } else {
+        throw new InvalidArgumentException('El JSON no define un siguiente periodo con precio.');
+    }
+
+    $precioSiguientePeriodo =
+        $calcularPrecioHasta($finSiguientePeriodo) - $precioPrimerPeriodo;
+
+    return [
+        'primer_periodo' => $precioPrimerPeriodo,
+        'siguiente_periodo' => $precioSiguientePeriodo,
+    ];
+}
+
+?>

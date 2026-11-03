@@ -2193,7 +2193,8 @@ function get_products_search($table_name,$db, $method, $id, $data){
                 WHERE ProductName LIKE :search  AND 
                             Estatus_price_list = 1 AND
                             Estatus_price = 1 AND 
-                :date BETWEEN  FechaHoraInicio AND FechaHoraFin  $DayWeek                                    
+                :date BETWEEN  FechaHoraInicio AND FechaHoraFin  $DayWeek    
+                GROUP BY Producto                                
             ";                            
             $stmt = $db->prepare($query);
 

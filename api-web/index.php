@@ -2189,7 +2189,7 @@ function products($table_name,$db, $method, $id, $data){
             }               
             
             foreach ($productos as $product) {
-                $sql = "SELECT Producto_rp, Producto_r, Image, Name, '0' as Price, '0' as Quantity  FROM v_related_products WHERE Producto_rp = :idproduct ";
+                $sql = "SELECT Producto_rp, Producto_r, Image, Name, '0' as Price, '0' as Quantity, Category  FROM v_related_products WHERE Producto_rp = :idproduct AND Category <> 'Hidden' GROUP BY Producto_r";
                 $stmt = $db->prepare($sql);
                 $stmt->bindValue(":idproduct",$product['Id']); 
                 $stmt->execute();
@@ -2204,7 +2204,32 @@ function products($table_name,$db, $method, $id, $data){
                         $Accesories[$index]['Quantity'] = $resultados_p[0]['Quantity'];
                     }
                 }   
-            }         
+            }
+
+            foreach ($productos as $product) {
+                $sql = "SELECT vr2.Producto_rp, vr2.Producto_r, vr2.Image, vr2.Name, '0' as Price, '0' as Quantity, vr2.Category 
+                        FROM v_related_products vr1
+                        INNER JOIN v_related_products vr2 ON vr1.Producto_r = vr2.Producto_rp
+                        WHERE vr1.Producto_rp =  :idproduct
+                            AND vr1.Category = 'Hidden' 
+                            AND vr2.Category <> 'Hidden'
+                        GROUP BY vr2.Producto_r";
+                $stmt = $db->prepare($sql);
+                $stmt->bindValue(":idproduct",$product['Id']); 
+                $stmt->execute();
+                $AccesoriesH = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+            if ($AccesoriesH) {
+                foreach ($AccesoriesH as $index =>$Acc ) {
+                    $resultados_p = precios($data,$AccesoriesH[$index]['Producto_r']);
+                    if ($resultados_p) {
+                        $AccesoriesH[$index]['Price'] = $resultados_p[0]['Price'];
+                        $AccesoriesH[$index]['Name'] = $resultados_p[0]['ProductName'];
+                        $AccesoriesH[$index]['Quantity'] = $resultados_p[0]['Quantity'];
+                    }
+                }   
+            }
+            
             foreach ($productos as $product) {
                 $sql = "
                     SELECT
@@ -2249,6 +2274,7 @@ function products($table_name,$db, $method, $id, $data){
                 "Images" => $Images,
                 "Videos" => $Videos,
                 "Accesories" => $Accesories,
+                "AccesoriesH" => $AccesoriesH,
                 "UpSelling"=>$UpSelling,
                 "Resultadosp"=>$resultados_p
             ]);

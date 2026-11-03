@@ -1986,21 +1986,21 @@ function get_products_categories($table_name,$db, $method, $id, $data){
                 UNION 
 
                 SELECT
-                        relationship_products.Producto_rsp as IdProduct, 
+                        relationship_products.Producto_sp as IdProduct, 
                         count(relationship_products.Producto_rsp) as Quantity
                 FROM
                         v_leads_detail
                         INNER JOIN
                         relationship_products
                         ON 
-                                v_leads_detail.IdProduct = relationship_products.Producto_sp
+                                v_leads_detail.IdProduct = relationship_products.Producto_rsp
                 WHERE 
                         v_leads_detail.Status IN ('quoted', 'confirmed')
                         AND v_leads_detail.Unlimited = 0
                         AND v_leads_detail.StartDateTime < :DateEE 
                         AND v_leads_detail.EndDateTime > :DateSS 
 
-                GROUP BY relationship_products.Producto_rsp	                
+                GROUP BY relationship_products.Producto_sp	                
             ";             
 
 
@@ -2159,21 +2159,21 @@ function get_products_search($table_name,$db, $method, $id, $data){
                 UNION 
 
                 SELECT
-                        relationship_products.Producto_rsp as IdProduct, 
+                        relationship_products.Producto_sp as IdProduct, 
                         count(relationship_products.Producto_rsp) as Quantity
                 FROM
                         v_leads_detail
                         INNER JOIN
                         relationship_products
                         ON 
-                                v_leads_detail.IdProduct = relationship_products.Producto_sp
+                                v_leads_detail.IdProduct = relationship_products.Producto_rsp
                 WHERE 
                         v_leads_detail.Status IN ('quoted', 'confirmed')
                         AND v_leads_detail.Unlimited = 0
                         AND v_leads_detail.StartDateTime < :DateEE 
                         AND v_leads_detail.EndDateTime > :DateSS 
 
-                GROUP BY relationship_products.Producto_rsp	                
+                GROUP BY relationship_products.Producto_sp	                
             ";             
 
 
@@ -2339,21 +2339,21 @@ function get_related_products($table_name,$db, $method, $id, $data){
                 UNION 
 
                 SELECT
-                        relationship_products.Producto_rsp as IdProduct, 
+                        relationship_products.Producto_sp as IdProduct, 
                         count(relationship_products.Producto_rsp) as Quantity
                 FROM
                         v_leads_detail
                         INNER JOIN
                         relationship_products
                         ON 
-                                v_leads_detail.IdProduct = relationship_products.Producto_sp
+                                v_leads_detail.IdProduct = relationship_products.Producto_rsp
                 WHERE 
                         v_leads_detail.Status IN ('quoted', 'confirmed')
                         AND v_leads_detail.Unlimited = 0
                         AND v_leads_detail.StartDateTime < :DateEE 
                         AND v_leads_detail.EndDateTime > :DateSS 
 
-                GROUP BY relationship_products.Producto_rsp	                
+                GROUP BY relationship_products.Producto_sp	                
             ";             
 
             $stmt = $db->prepare($query);
@@ -2909,6 +2909,7 @@ function distance_charge($table_name,$db, $method, $id, $data){
             $ZIPD = $data->{'ZIPD'};
             $COND = $data->{'COND'};
             $APPLY = $data->{'APPLY'};
+            $minimun = 0;
             if ($ZIPD!="" AND $ZIPD != $ZIPO AND $APPLY == 1){
                     //RECUPERAMOS EL COSTO EXTRA POR MILLA
                     $query = "SELECT Rate, Zip, Distance, State, Total, Restriction FROM distance_charges  LIMIT 1";
@@ -2928,6 +2929,7 @@ function distance_charge($table_name,$db, $method, $id, $data){
 
                     $total_millas = 0;
                     $costo_total = 0;
+                   
                     //die("$ZIPO,$CONO $ZIPD,$COND");
                     $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND");
                     if (str_starts_with($total_millas, 'Error')) {
@@ -2950,6 +2952,7 @@ function distance_charge($table_name,$db, $method, $id, $data){
                         if ($data) {
                             // Ahora accedes a cada valor por su nombre
                             $costo_total =  $data['Charge'];
+                            $minimun = $data['Minimun'];
                         } 
                     }
                     //echo " ** $Distance **";
@@ -3035,7 +3038,8 @@ function distance_charge($table_name,$db, $method, $id, $data){
                             "status" => "false",
                             "total_millas" => $total_millas,
                             "costo_total" => round($costo_total, 2),
-                            "taxrate" => $TaxRate
+                            "taxrate" => $TaxRate,
+                        "min" => $minimun
                         ];
 
                         echo json_encode(array(
@@ -3048,7 +3052,8 @@ function distance_charge($table_name,$db, $method, $id, $data){
                         "status" => "success",
                         "total_millas" => $total_millas,
                         "costo_total" => round($costo_total, 2),
-                        "taxrate" => $TaxRate
+                        "taxrate" => $TaxRate,
+                        "min" => $minimun
                     ];
 
                     echo json_encode(array(
@@ -3081,7 +3086,8 @@ function distance_charge($table_name,$db, $method, $id, $data){
                         "status" => "success",
                         "total_millas" => 0,
                         "costo_total" => 0,
-                        "taxrate" => $TaxRate
+                        "taxrate" => $TaxRate,
+                        "min" => $minimun
                     ];
 
                     echo json_encode(array(

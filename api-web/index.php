@@ -4190,21 +4190,21 @@ function products_categories($table_name,$db, $method, $id, $data){
                 UNION 
 
                 SELECT
-                        relationship_products.Producto_rsp as IdProduct, 
+                        relationship_products.Producto_sp as IdProduct, 
                         count(relationship_products.Producto_rsp) as Quantity
                 FROM
                         v_leads_detail
                         INNER JOIN
                         relationship_products
                         ON 
-                                v_leads_detail.IdProduct = relationship_products.Producto_sp
+                                v_leads_detail.IdProduct = relationship_products.Producto_rsp
                 WHERE 
                         v_leads_detail.Status IN ('quoted', 'confirmed')
                         AND v_leads_detail.Unlimited = 0
                         AND v_leads_detail.StartDateTime < :DateEE 
                         AND v_leads_detail.EndDateTime > :DateSS 
 
-                GROUP BY relationship_products.Producto_rsp	                
+                GROUP BY relationship_products.Producto_sp	                
             ";            
 
             $stmt = $db->prepare($query);
@@ -4434,23 +4434,26 @@ try {
                 "ZIPO" => $account['CP'],
                 "CONO" => $account['Pais'],
                 "ZIPD" => $data->lugar->cp, // (asumiendo que $data venía de otro lado)
-                "COND" => $account['Pais']
+                "COND" => $account['Pais'],
+                "APPLY" => $account['DistanceCharge']
             ];
             // Convertimos el arreglo a objeto
             $data_dst = (object) $arreglo;    
             $Costo_Distancia = 0;
             $Distance = '';
             $Distance = distance_charge($table_name,$db, $method, $id, $data_dst);
-            $Distance = json_decode($Distance);
+
+
             //$Nt1 =  $data->lugar->cp." ".$Distance->cost->costo_total." ".$Distance->cost->total_millas." ".$Distance->cost->taxrate;
             // Acceder al valor
-            $Costo_Distancia = $Distance->cost->costo_total;
+            $Costo_Distancia = $Distance['costo_total'];
             if ($account['ApplyTax'] == 1){
-                $TaxPc = $Distance->cost->taxrate; 
+                $TaxPc = $Distance['taxrate'];
             }
             else{
                 $TaxPc = 0; 
             }
+
             $TaxAm = 0; 
             //TOTAL DE ITEMS
             $TotalI = 0;
@@ -4980,21 +4983,21 @@ function precios($data,$product){
         UNION 
 
         SELECT
-                relationship_products.Producto_rsp as IdProduct, 
+                relationship_products.Producto_sp as IdProduct, 
                 count(relationship_products.Producto_rsp) as Quantity
         FROM
                 v_leads_detail
                 INNER JOIN
                 relationship_products
                 ON 
-                        v_leads_detail.IdProduct = relationship_products.Producto_sp
+                        v_leads_detail.IdProduct = relationship_products.Producto_rsp
         WHERE 
                 v_leads_detail.Status IN ('quoted', 'confirmed')
                 AND v_leads_detail.Unlimited = 0
                 AND v_leads_detail.StartDateTime < :DateEE 
                 AND v_leads_detail.EndDateTime > :DateSS 
 
-        GROUP BY relationship_products.Producto_rsp	                
+        GROUP BY relationship_products.Producto_sp	                
     ";     
 
     $stmt = $db->prepare($query);
@@ -5327,41 +5330,66 @@ function distance($table_name,$db, $method, $id, $data){
 }
 
 function distance_charge($table_name,$db, $method, $id, $data){
-    global $IDS; 
+    global $IDS;
     switch ($method) {
         case 'POST': 
             $ZIPO = $data->{'ZIPO'};
             $CONO = $data->{'CONO'};
             $ZIPD = $data->{'ZIPD'};
             $COND = $data->{'COND'};
-            if ($ZIPD!="" AND $ZIPD != $ZIPO){
+            $APPLY = $data->{'APPLY'};
+            $minimun = 0;
+            if ($ZIPD!="" AND $ZIPD != $ZIPO AND $APPLY == 1){
                     //RECUPERAMOS EL COSTO EXTRA POR MILLA
                     $query = "SELECT Rate, Zip, Distance, State, Total, Restriction FROM distance_charges  LIMIT 1";
+                    
                     $stmt = $db->prepare($query);
                     $stmt->execute();
                     //$costo_extra = $stmt->fetchColumn();
                     $data = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
                     if ($data) {
                         // Ahora accedes a cada valor por su nombre
                         $costo_extra =  $data['Rate'];
                         $Zip =  $data['Zip'];
                         $Distance =  $data['Distance'];
-                    }           
-                    //echo " ** $Distance **";
+                        
+                    }
+
                     $total_millas = 0;
-                    if ($Distance==1){
-                        //die("$ZIPO,$CONO $ZIPD,$COND");
-                        $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND");
-                        if (str_starts_with($total_millas, 'Error')) {
-                            echo Trd(1);
-                        }
-                        else{
-                            $total_millas = str_replace(" mi", "", $total_millas);
-                            $total_millas = str_replace(",", "", $total_millas);
-                            $total_millas = $total_millas * 1;
-                        }
-                        //$total_millas = 35; //AQUI VA LA FUNCION DE GOOGLE MAPS PARA SABER LAS MILLAS
-                        //die( $total_millas);
+                    $costo_total = 0;
+                   
+                    //die("$ZIPO,$CONO $ZIPD,$COND");
+                    $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND");
+                    if (str_starts_with($total_millas, 'Error')) {
+                        echo "Se detectó un error.";
+                    }
+                    else{
+                        $total_millas = str_replace(" mi", "", $total_millas);
+                        $total_millas = str_replace(",", "", $total_millas);
+                        $total_millas = $total_millas * 1;
+                    }
+                    //$total_millas = 35; //AQUI VA LA FUNCION DE GOOGLE MAPS PARA SABER LAS MILLAS
+                    //die( $total_millas);                    
+                    if ($Zip == 1){
+                        $query = "SELECT Charge, Minimun, FlatTax FROM distance_charges_zip_code WHERE CP = :zip";
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':zip', $ZIPD, PDO::PARAM_STR);
+                        $stmt->execute();
+                        //$costo_extra = $stmt->fetchColumn();
+                        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+                        if ($data) {
+                            // Ahora accedes a cada valor por su nombre
+                            $costo_total =  $data['Charge'];
+                            $minimun = $data['Minimun'];
+                        } 
+                    }
+                    //echo " ** $Distance **";
+                    
+
+                    if ($Distance==1 AND $costo_total == 0){
+
+
                     // 1. Consultamos los rangos ordenados
                         $query = "SELECT MinM, MaxM, ChargeD, ChargeType 
                                 FROM distance_charges_distance 
@@ -5370,20 +5398,25 @@ function distance_charge($table_name,$db, $method, $id, $data){
                         $stmt = $db->prepare($query);
                         $stmt->execute();
                         $rangos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
                         $costo_total = 0;
                         $max_milla_cubierta = 0;
+
                         // 2. Procesamos cada tramo
                         foreach ($rangos as $rango) {
                             $min = (float)$rango['MinM'];
                             $max = (float)$rango['MaxM'];
                             $cargo = (float)$rango['ChargeD'];
                             $tipo = strtoupper($rango['ChargeType']);
+
                             // Si el viaje no llega ni al inicio de este rango, lo ignoramos
                             if ($total_millas < $min) {
                                 continue;
                             }
+
                             // Determinamos el final del tramo actual
                             $milla_final_en_tramo = min($total_millas, $max);
+                            
                             if ($tipo === 'F') {
                                 // Cargo FIJO: Se suma el monto completo si el envío toca este rango
                                 $costo_total += $cargo;
@@ -5392,9 +5425,11 @@ function distance_charge($table_name,$db, $method, $id, $data){
                                 $millas_a_cobrar = $milla_final_en_tramo - ($min - 1); 
                                 $costo_total += ($millas_a_cobrar * $cargo);
                             }
+
                             // Guardamos hasta dónde llega la cobertura de la tabla
                             $max_milla_cubierta = max($max_milla_cubierta, $max);
                         }
+
                         // 3. Si hay millas excedentes fuera de la tabla, aplicamos el costo extra
                         if ($total_millas > $max_milla_cubierta) {
                             $millas_excedentes = $total_millas - $max_milla_cubierta;
@@ -5402,45 +5437,106 @@ function distance_charge($table_name,$db, $method, $id, $data){
                         }
                         //$costo_total;
                     }
-                    $TaxRate = 0;
-                    $query = "SELECT EstimatedCombineRate FROM taxrates_zip WHERE Zip = :zip";
-                    $stmt = $db->prepare($query);
-                    $stmt->bindParam(':zip', $ZIPD, PDO::PARAM_STR);
-                    $stmt->execute();
-                    //$costo_extra = $stmt->fetchColumn();
-                    $data = $stmt->fetch(PDO::FETCH_ASSOC);
-                    if ($data) {
-                        // Ahora accedes a cada valor por su nombre
-                        $TaxRate =  $data['EstimatedCombineRate'];
+
+
+
+
+                    if ($CONO =='MX'){
+                        $TaxRate = '0.16';
+                    }else{
+
+                        $TaxRate = 0;
+                        $query = "SELECT EstimatedCombineRate FROM taxrates_zip WHERE Zip = :zip";
+                        
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':zip', $ZIPD, PDO::PARAM_STR);
+                        $stmt->execute();
+                        //$costo_extra = $stmt->fetchColumn();
+                        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($data) {
+                            // Ahora accedes a cada valor por su nombre
+                            $TaxRate =  $data['EstimatedCombineRate'];
+                        }                    
+
                     }
+
+
+                    if ($costo_total == 0){
+                        $respuesta = [
+                            "status" => "false",
+                            "total_millas" => $total_millas,
+                            "costo_total" => round($costo_total, 2),
+                            "taxrate" => $TaxRate,
+                        "min" => $minimun
+                        ];
+
+                        //echo json_encode(array(
+                        //    "cost" => $respuesta
+                        //));
+                        return $respuesta;  
+                        die();
+                    }                    
+
                     $respuesta = [
                         "status" => "success",
                         "total_millas" => $total_millas,
                         "costo_total" => round($costo_total, 2),
-                        "taxrate" => $TaxRate
+                        "taxrate" => $TaxRate,
+                        "min" => $minimun
                     ];
-                    return json_encode(array(
-                        "cost" => $respuesta
-                    ));  
+
+                    //echo json_encode(array(
+                    //    "cost" => $respuesta
+                    //));
+                    return $respuesta;  
                 }
                 else{
+
+                    if ($CONO =='MX'){
+                        $TaxRate = '0.16';
+                    }else{
+
+                        $TaxRate = 0;
+                        $query = "SELECT EstimatedCombineRate FROM taxrates_zip WHERE Zip = :zip";
+                        
+                        $stmt = $db->prepare($query);
+                        $stmt->bindParam(':zip', $ZIPD, PDO::PARAM_STR);
+                        $stmt->execute();
+                        //$costo_extra = $stmt->fetchColumn();
+                        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+                        
+                        if ($data) {
+                            // Ahora accedes a cada valor por su nombre
+                            $TaxRate =  $data['EstimatedCombineRate'];
+                        }                    
+
+                    }
+
                     $respuesta = [
                         "status" => "success",
                         "total_millas" => 0,
                         "costo_total" => 0,
-                        "taxrate" => 0
+                        "taxrate" => $TaxRate,
+                        "min" => $minimun
                     ];
-                    return json_encode(array(
-                        "cost" => $respuesta
-                    ));                 
+
+                    //echo json_encode(array(
+                    //    "cost" => $respuesta
+                    //));  
+                    
+                    return $respuesta;
+
                 }
         break;
+
         default:
         // ------------------------------------------------------------------
             http_response_code(405);
-            echo json_encode(array("message" => Trd(2)));
+            echo json_encode(array("message" => "Método HTTP no permitido para este recurso."));
         break;
     }      
+    
 }
 function validate_gifcard($table_name,$db, $method, $id, $data){
     global $IDS;

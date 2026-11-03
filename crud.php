@@ -1920,6 +1920,8 @@ var queryUrl = API_BASE_URL + IdTabla + '/' +
 
 function getRecordData(Id,IdTabla) {
     if (IdTabla == 'products'){
+        $('#third_btnClear').click()
+        $('#third_btnAplicar').click();
         IdSelected = Id;
         setProductsEditSidebarVisible(true);
         //alert(Id)
@@ -2136,7 +2138,7 @@ function getRecordData(Id,IdTabla) {
                 //configTotal = [];
                 //ejecutarFuncion1();
                 //if (myChart) {myChart.destroy()};
-                $('#third_btnLimpiar').click()
+                $('#third_btnClear').click()
                 $('#edit_ItemPrice').closest('form')[0].reset();
                 $('#edit_producto_origen_pl').closest('form')[0].reset();
                 $('#edit_new').val(2);
@@ -3373,7 +3375,7 @@ $(function(){
                             //}
                         break;
                     case 'JsonPrice':
-                            $('#third_btnLimpiar').click();   
+                            $('#third_btnClear').click();   
                             //ejecutarFuncion1();
                             input.value = valor || '';
                             $('#third_btnAplicar').click();
@@ -3438,7 +3440,7 @@ $(function(){
 
                     switch (clave) {
                     case 'JsonPrice':
-                            $('#third_btnLimpiar').click();   
+                            $('#third_btnClear').click();   
                             //ejecutarFuncion1();
                             input.value = valor || '';
                             $('#third_btnAplicar').click(); 
@@ -3562,7 +3564,7 @@ document.addEventListener('DOMContentLoaded', function () {
         $('#edit_new').val(1);
         //$('#contenedor-funciones').empty();
         //$('#third_casos').empty();        
-        $('#third_btnLimpiar').click();   
+        $('#third_btnClear').click();   
     });
 
     // Para los cambios normales (selección de existente)

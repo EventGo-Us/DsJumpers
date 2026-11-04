@@ -358,7 +358,8 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 
                 if ($Where != "" AND $FWhere != "" )
                     $Where=" WHERE ".$FWhere;
-
+                if ($table_name == 'related_products')
+                    $Where.=" GROUP BY producto_r ";
                 //$count_query = "SELECT COUNT(*) as total FROM $v_table_name $Where";
                 $count_query = "SELECT COUNT(*) as total FROM $v_table_name $Where";
                 //echo $count_query;
@@ -601,6 +602,9 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                                 
                 else
                     $v_table_name = $table_name;
+
+                if ($table_name == 'related_products')
+                    $Where.=" GROUP BY producto_r ";
                 // 3. Consulta para obtener los DATOS PAGINADOS
                 $data_query = "SELECT $Campos FROM $v_table_name $Where ORDER BY $Order  LIMIT :limit OFFSET :offset";                
                 //echo $data_query;

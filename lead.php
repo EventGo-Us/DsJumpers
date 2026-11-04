@@ -168,7 +168,7 @@ include_once 'head.php';
             </div>
             <div class="modal-footer border-0 bg-light">
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal"><?php echo Trd(69)?></button>
-                <button type="button" class="btn btn-dark btn-sm" id="ShareButton" onclick="var newTab = window.open('<?= $account['WebSite'] ?>quote.php?Id='+$('#UUID').val(), '_blank');">
+                <button type="button" class="btn btn-dark btn-sm" id="ShareButton" onclick="var newTab = window.open('<?= $account['WebSite'] ?>/quote.php?Id='+$('#UUID').val(), '_blank');">
                     <i class="fa-solid fa-share-nodes"></i><?php echo Trd(70)?>
                 </button>
 

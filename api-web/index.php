@@ -841,9 +841,9 @@ function processpayment_square_sale($table_name,$db, $method, $id, $data){
             // ── Inicializar cliente Square (v45) ───────────────────────────────────────────
             $square = new SquareClient(
                 token: $accessToken,
-                options: ['baseUrl' => 'https://connect.squareupsandbox.com'] // sandbox
-                // Para producción: omitir baseUrl o usar 'https://connect.squareup.com'
+                options: ['baseUrl' => 'https://connect.squareup.com']
             );
+            //options: ['baseUrl' => 'https://connect.squareupsandbox.com'] 
             // ── Crear el pago ──────────────────────────────────────────────────────────────
             try {
                 $response = $square->payments->create(
@@ -1296,9 +1296,9 @@ function processpayment_square($table_name,$db, $method, $id, $data){
             // ── Inicializar cliente Square (v45) ───────────────────────────────────────────
             $square = new SquareClient(
                 token: $accessToken,
-                options: ['baseUrl' => 'https://connect.squareupsandbox.com'] // sandbox
-                // Para producción: omitir baseUrl o usar 'https://connect.squareup.com'
+                options: ['baseUrl' => 'https://connect.squareup.com'] 
             );
+            //options: ['baseUrl' => 'https://connect.squareupsandbox.com'] 
             // ── Crear el pago ──────────────────────────────────────────────────────────────
             try {
                 $response = $square->payments->create(
@@ -5191,8 +5191,9 @@ function tnks_square($table_name,$db, $method, $id, $data){
             $orderId = 'LIQ-' . $idLead.'-1'; 
             $square = new SquareClient(
                 token: $accessToken,
-                options: ['baseUrl' => 'https://connect.squareupsandbox.com']
+                options: ['baseUrl' => 'https://connect.squareup.com']
             );
+            //options: ['baseUrl' => 'https://connect.squareupsandbox.com'] 
             $resultado = verificarPagoLink($square, $orderId,$db);
             if ($resultado['pagado'] == 'COMPLETED') {
                 $transactionId = $resultado['transaccion_id'];

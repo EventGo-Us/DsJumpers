@@ -70,9 +70,9 @@ if (!$token_id) {
 // ── Inicializar cliente Square (v45) ───────────────────────────────────────────
 $square = new SquareClient(
     token: $accessToken,
-    options: ['baseUrl' => 'https://connect.squareup.com'] // sandbox
-    // Para producción: omitir baseUrl o usar 'https://connect.squareup.com'
+    options: ['baseUrl' => 'https://connect.squareup.com'] 
 );
+//options: ['baseUrl' => 'https://connect.squareupsandbox.com'] 
 
 // ── Crear el pago ──────────────────────────────────────────────────────────────
 try {

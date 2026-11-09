@@ -1535,6 +1535,21 @@ $(document).ready(function() {
 <script src="https://www.paypal.com/sdk/js?client-id=<?= $paypal_account['Id'] ?>&currency=<?= $account['Currency'] ?>&enable-funding=venmo,paylater&buyer-country=<?= $account['Pais'] ?>"></script>
 
 <script>
+    const paypalExtraPctj = <?= json_encode((float) ($paypal_account['percentage'] ?? 0) / 100) ?>;
+
+    function getPayPalPaymentAmounts() {
+        const baseAmountCents = Math.round((parseFloat($('#monto_pago').val()) || 0) * 100);
+        const extraAmountCents = paypalExtraPctj > 0
+            ? Math.round(baseAmountCents * paypalExtraPctj)
+            : 0;
+
+        return {
+            baseAmount: (baseAmountCents / 100).toFixed(2),
+            extraAmount: (extraAmountCents / 100).toFixed(2),
+            totalAmount: ((baseAmountCents + extraAmountCents) / 100).toFixed(2)
+        };
+    }
+
     paypal.Buttons({
         // Fuerza el flujo de captura inmediata
         commit: true, 
@@ -1548,7 +1563,29 @@ $(document).ready(function() {
         },
 
         createOrder: function(data, actions) {
-            const monto = parseFloat($('#monto_pago').val()) || 0;
+            const amounts = getPayPalPaymentAmounts();
+            const currency = '<?= $account['Currency'] ?>';
+            const items = [{
+                name: 'Pay Sale ' + $('#token').val(),
+                sku: 'Pay',
+                unit_amount: {
+                    currency_code: currency,
+                    value: amounts.baseAmount
+                },
+                quantity: '1'
+            }];
+
+            if (parseFloat(amounts.extraAmount) > 0) {
+                items.push({
+                    name: 'Cargo por tarjeta (' + (paypalExtraPctj * 100).toFixed(2) + '%)',
+                    sku: 'CardFee',
+                    unit_amount: {
+                        currency_code: currency,
+                        value: amounts.extraAmount
+                    },
+                    quantity: '1'
+                });
+            }
             
             return actions.order.create({
                 application_context: {
@@ -1556,27 +1593,16 @@ $(document).ready(function() {
                 },
                 purchase_units: [{
                     amount: {
-                        currency_code: '<?= $account['Currency'] ?>',
-                        value: monto, // El TOTAL absoluto de la orden (25 + 10)
+                        currency_code: currency,
+                        value: amounts.totalAmount,
                         breakdown: {
                             item_total: {
-                                currency_code: '<?= $account['Currency'] ?>',
-                                value: monto // La suma de los subtotales de los items
+                                currency_code: currency,
+                                value: amounts.totalAmount
                             }
                         }
                     },
-                    // AQUÍ PONES TU LISTA DE PRODUCTOS
-                    items: [
-                        {
-                            name: 'Pay Sale ' + $('#token').val(),       // Nombre del producto 1
-                            sku: 'Pay',                // Identificador único (opcional)
-                            unit_amount: {
-                                currency_code: '<?= $account['Currency'] ?>',
-                                value: monto               // Precio unitario
-                            },
-                            quantity: '1'                    // Cantidad
-                        }
-                    ]
+                    items: items
                 }]
             });
         },
@@ -1584,7 +1610,7 @@ $(document).ready(function() {
         onApprove: function(data, actions) {
             return actions.order.capture().then(function(orderData) {
             
-                $('#monto').val($('#monto_pago').val())
+                $('#monto').val(getPayPalPaymentAmounts().totalAmount)
                 $('#tipo-pago').val($('#tipo_pago').val())
                 $('#referencia').val($('#refcia').val())            
 

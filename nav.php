@@ -38,6 +38,7 @@ if ($_SESSION['role_id'] == 'ADMIN'){
                         <li><a class="dropdown-item" href="sales.php"><i class="fas fa-list me-2"></i><?php echo ($_SESSION['Idioma']== 'en') ? "Sales" : "Ventas"; ?></a></li>
                         <li><a class="dropdown-item" href="admin_comments.php"><i class="fa-regular fa-comments"></i> <?php echo ($_SESSION['Idioma']== 'en') ? "Sales Comments" : "Comentarios de Ventas"; ?></a></li>
                         <li><a class="dropdown-item" href="blog.php"><i class="fa-solid fa-blog"></i> <?php echo ($_SESSION['Idioma']== 'en') ? "Blog" : "Blog"; ?></a></li> 
+                        <li><a class="dropdown-item" href="blackout_dates.php"><i class="fa-solid fa-calendar-xmark me-2"></i><?php echo ($_SESSION['Idioma']== 'en') ? "Blackout dates" : "Fechas no operativas"; ?></a></li>
                         <li><a class="dropdown-item" href="banner.php"><i class="fa-solid fa-sign-hanging"></i> <?php echo ($_SESSION['Idioma']== 'en') ? "Sales banner" : "Banner de ventas"; ?></a></li>                                                           
                     </ul>
                 </li>

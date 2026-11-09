@@ -23,6 +23,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['idLead'])) {
     $opay_account = $stmt->fetch();     
     $merchantId = $opay_account['Id'];
     $privateKey = $opay_account['SecretKey'];
+    $isSandbox  = $opay_account['sandbox'];
+    $extra_pctj = (int) ($opay_account['extracharge'] ?? 0) === 1
+        ? (float) ($opay_account['percentage'] ?? 0) / 100
+        : 0;
+
+    if ((float) $monto <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'El monto debe ser mayor a 0']);
+        exit;
+    }
+
+    $baseAmountCents = (int) round((float) $monto * 100);
+    $extraAmountCents = $extra_pctj > 0
+        ? (int) round($baseAmountCents * $extra_pctj)
+        : 0;
+    $totalAmountCents = $baseAmountCents + $extraAmountCents;
+    $description = 'Liquidación de saldo - Lead #' . $idLead;
+    if ($extraAmountCents > 0) {
+        $description .= ' | Monto: $' . number_format($baseAmountCents / 100, 2)
+            . ' ' . $account['Currency']
+            . ' | Cargo por tarjeta: $' . number_format($extraAmountCents / 100, 2)
+            . ' ' . $account['Currency']
+            . ' (' . number_format($extra_pctj * 100, 2) . '%)';
+    }
 
     $stmt = $db->prepare("SELECT Organization, Customer FROM  lead WHERE Id = ?");
     $stmt->execute([$idLead]);
@@ -42,7 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['idLead'])) {
 
     // El Order ID debe ser consistente para poder recuperarlo
     $orderId = 'LIQ-'.$idLead.'-1'; 
-    $base_url = "https://sandbox-api.openpay.mx/v1/$merchantId/checkouts";
+    $base_url = $isSandbox ? "https://sandbox-api.openpay.mx/v1/$merchantId/checkouts" : "https://api.openpay.mx/v1/$merchantId/checkouts";
+    //$base_url = "https://sandbox-api.openpay.mx/v1/$merchantId/checkouts";
 
     // Función auxiliar para consultar a Openpay
     function callOpenpay($url, $method, $key, $data = null) {
@@ -65,9 +90,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['idLead'])) {
     if ($Client['Apellidos'] ==''){
         // 1. Intentar crear el Checkout
         $payload = [
-            'amount' => (float)$monto,
+            'amount' => $totalAmountCents / 100,
             'currency' => $account['Currency'],
-            'description' => 'Liquidación de saldo - Lead #' . $idLead,
+            'description' => $description,
             'order_id' => $orderId,
             'send_email' => false,
             'expiration_date' => date('Y-m-d H:i', strtotime('+3 days')),
@@ -83,9 +108,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['idLead'])) {
     else{
         // 1. Intentar crear el Checkout
         $payload = [
-            'amount' => (float)$monto,
+            'amount' => $totalAmountCents / 100,
             'currency' => $account['Currency'],
-            'description' => 'Liquidación de saldo - Lead #' . $idLead,
+            'description' => $description,
             'order_id' => $orderId,
             'send_email' => false,
             'expiration_date' => date('Y-m-d H:i', strtotime('+3 days')),

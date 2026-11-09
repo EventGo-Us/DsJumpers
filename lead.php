@@ -44,6 +44,9 @@ include_once 'head.php';
     $stmt->execute();
     $paypal_account = $stmt->fetch(PDO::FETCH_ASSOC);    
 
+    $paymentAccountTable = ($account['Pay_platform'] ?? '') === 'OPAY' ? 'opay_account' : 'square_account';
+    $stmt = $db->query("SELECT percentage FROM {$paymentAccountTable} LIMIT 1");
+    $paymentAccount = $stmt->fetch(PDO::FETCH_ASSOC);
 ?>
 <link rel="stylesheet" href="css/lead.css" />
 <style>
@@ -171,7 +174,9 @@ include_once 'head.php';
                 <button type="button" class="btn btn-dark btn-sm" id="ShareButton" onclick="var newTab = window.open('<?= $account['WebSite'] ?>/quote.php?Id='+$('#UUID').val(), '_blank');">
                     <i class="fa-solid fa-share-nodes"></i><?php echo Trd(70)?>
                 </button>
-
+                <button type="button" class="btn btn-dark btn-sm" id="ShareButtonC" onclick="var newTab = window.open('<?= $account['WebSite'] ?>/contractC.php?Id='+$('#UUID').val(), '_blank');">
+                    <i class="fa-solid fa-share-nodes"></i><?php echo Trd(70)?>
+                </button>
             </div>
         </div>
     </div>
@@ -2935,6 +2940,14 @@ function LoadDocument(DocumentType){
     if ($('#AmountPaid').val() * 1 > 0){
         PagoAnticipado = $('#AmountPaid').val() ;
     }
+    const pagoAnticipado = parseFloat(PagoAnticipado) || 0;
+    const paymentPercentage = <?= json_encode((float) ($paymentAccount['percentage'] ?? 0)) ?>;
+    const paypalPercentage = <?= json_encode((float) ($paypal_account['percentage'] ?? 0)) ?>;
+    const chargePercentage = paymentPercentage > 0 ? paymentPercentage / 100 : paypalPercentage /100;
+    //alert(chargePercentage)
+    const cardcharge = chargePercentage > 0
+        ? Math.round((pagoAnticipado * chargePercentage + Number.EPSILON) * 100) / 100
+        : 0;
     const datosGenerales = {
         leadid: $('#Folio').val(),
         contractsentdate: "",
@@ -2971,6 +2984,8 @@ function LoadDocument(DocumentType){
         tip: 0,
         total: $('#Total').val(),
         apayment: PagoAnticipado,
+        cardcharge: cardcharge,
+        atopay: Math.round((pagoAnticipado + cardcharge + Number.EPSILON) * 100) / 100,
         ctr_balance_due: $('#Total').val() - PagoAnticipado,
         balancedue: $('#Total').val() - PagoAnticipado,        
         electric:"",
@@ -3040,8 +3055,9 @@ function LoadDocument(DocumentType){
             const $contenedor = $('#contrato-dsj');
             const $cuerpoTabla = $('#lista-productos');
             const $filaPlantilla = $cuerpoTabla.find('.item-fila').first();
-            ejecutarRenderizadoContract($contenedor, $cuerpoTabla, $filaPlantilla, datosGenerales, productos,descuentos);
+            ejecutarRenderizadoContract($contenedor, $cuerpoTabla, $filaPlantilla, datosGenerales, productos,descuentos, chargePercentage);
             $('#ShareButton').hide();
+            $('#ShareButtonC').show();
             lanzarMensaje("<?php echo Trd(92)?>", "exito");
     }
     else if (DocumentType =='Quote'){
@@ -3051,9 +3067,10 @@ function LoadDocument(DocumentType){
             const $contenedor = $('#cotizacion-dsj');
             const $cuerpoTabla = $('#lista-productos');
             const $filaPlantilla = $cuerpoTabla.find('.item-fila').first();
-            ejecutarRenderizadoQuote($contenedor, $cuerpoTabla, $filaPlantilla, datosGenerales, productos,descuentos);
+            ejecutarRenderizadoQuote($contenedor, $cuerpoTabla, $filaPlantilla, datosGenerales, productos,descuentos, chargePercentage);
             $('a[href*="link_to_accept"]').parent().hide();
             $('#ShareButton').show();
+            $('#ShareButtonC').hide();
             lanzarMensaje("<?php echo Trd(93)?>", "exito");
             <?php 
             if ($account['Tips'] == 0){
@@ -3114,6 +3131,7 @@ function LoadDocument(DocumentType){
 
                 ejecutarRenderizadoPicking($contenedor, $cuerpoTabla,$extracuerpoTabla, $filaPlantilla,$extrafilaPlantilla,datosGenerales, productos, descuentos, extras);
                 $('#ShareButton').hide();
+                $('#ShareButtonC').hide();
                 lanzarMensaje("<?= Trd(107) ?>", "exito");                        
 
             },
@@ -3132,7 +3150,7 @@ function LoadDocument(DocumentType){
     
 }
 
-function ejecutarRenderizadoContract($contenedor, $cuerpoTabla, $filaPlantilla, datosGenerales, productos,descuentos) {
+function ejecutarRenderizadoContract($contenedor, $cuerpoTabla, $filaPlantilla, datosGenerales, productos,descuentos, chargePercentage) {
     // 1. Limpiar productos previos (excepto la plantilla)
     $cuerpoTabla.find('tr:not(.item-fila)').remove();
 
@@ -3199,11 +3217,13 @@ function ejecutarRenderizadoContract($contenedor, $cuerpoTabla, $filaPlantilla, 
         }
     ?>    
 
+    $contenedor.find('#tr-cardcharge, #tr-atopay').toggle(chargePercentage > 0);
+
     const miModal = new bootstrap.Modal(document.getElementById('modalContrato'));
     miModal.show();
 }
 
-function ejecutarRenderizadoQuote($contenedor, $cuerpoTabla, $filaPlantilla, datosGenerales, productos,descuentos) {
+function ejecutarRenderizadoQuote($contenedor, $cuerpoTabla, $filaPlantilla, datosGenerales, productos,descuentos, chargePercentage) {
     // 1. Limpiar productos previos (excepto la plantilla)
     $cuerpoTabla.find('tr:not(.item-fila)').remove();
 
@@ -3284,6 +3304,7 @@ function ejecutarRenderizadoQuote($contenedor, $cuerpoTabla, $filaPlantilla, dat
         }
         ?>    
 
+    $contenedor.find('#tr-cardcharge, #tr-atopay').toggle(chargePercentage > 0);
 
     const miModal = new bootstrap.Modal(document.getElementById('modalContrato'));
     miModal.show();

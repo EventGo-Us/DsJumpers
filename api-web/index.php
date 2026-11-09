@@ -45,6 +45,9 @@ use Openpay\Data\OpenpayApiConnectionError;
 use Openpay\Data\OpenpayApiAuthError;
 use Square\SquareClient;
 use Square\Payments\Requests\CreatePaymentRequest;
+use Square\Types\CreateOrderRequest;
+use Square\Types\Order;
+use Square\Types\OrderLineItem;
 use Square\Types\Money;
 use Square\Types\Currency;
 use Square\Exceptions\SquareApiException;
@@ -253,6 +256,10 @@ switch ($resource) {
 	    //$Traducciones = Traducciones('get_all_sales',$lng,$db);            
         get_all_sales($resource,$db, $method, $id, $data);
     break;   
+
+    case 'get_blackout_dates':
+        get_blackout_dates($db, $method);
+    break;
     
     case 'get_all_blogs':          
         get_all_blogs($resource,$db, $method, $id, $data);
@@ -440,7 +447,7 @@ function OPAY($table_name,$db, $method, $id, $data){
     global $IDS;
     switch ($method) {
         case 'GET': 
-            $sql = "select Id,PublicKey FROM opay_account";
+            $sql = "select Id,PublicKey, extracharge, percentage, sandbox FROM opay_account";
             $stmt = $db->prepare($sql);
             $stmt->execute();
             $account = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -458,7 +465,7 @@ function SQUARE($table_name,$db, $method, $id, $data){
     global $IDS;
     switch ($method) {
         case 'GET': 
-            $sql = "select Id, LocalId FROM square_account";
+            $sql = "select Id, LocalId, extracharge, percentage, sandbox  FROM square_account";
             $stmt = $db->prepare($sql);
             $stmt->execute();
             $account = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -477,7 +484,7 @@ function PAYPAL($table_name,$db, $method, $id, $data){
     global $IDS;
     switch ($method) {
         case 'GET': 
-            $sql = "select Id, Active FROM paypal_account";
+            $sql = "select Id, Active, extracharge, percentage, sandbox  FROM paypal_account";
             $stmt = $db->prepare($sql);
             $stmt->execute();
             $account = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -775,6 +782,29 @@ function processpayment_paypal_sale($table_name,$db, $method, $id, $data){
     switch ($method) {
         case 'POST':
 
+                $amount = (float) ($data->amount ?? 0);
+                if ($amount <= 0) {
+                    http_response_code(400);
+                    echo json_encode(['status' => 'error', 'description' => 'El monto debe ser mayor a 0']);
+                    exit;
+                }
+
+                $stmt = $db->prepare("SELECT extracharge, percentage FROM paypal_account LIMIT 1");
+                $stmt->execute();
+                $paypalAccount = $stmt->fetch(PDO::FETCH_ASSOC);
+                $extraPctj = (int) ($paypalAccount['extracharge'] ?? 0) === 1
+                    ? (float) ($paypalAccount['percentage'] ?? 0) / 100
+                    : 0;
+                $totalAmountCents = (int) round($amount * 100);
+                $baseAmountCents = $extraPctj > 0
+                    ? (int) round($totalAmountCents / (1 + $extraPctj))
+                    : $totalAmountCents;
+                $extraAmountCents = $totalAmountCents - $baseAmountCents;
+                $amount = $totalAmountCents / 100;
+                $baseAmount = $baseAmountCents / 100;
+                $extraAmount = $extraAmountCents / 100;
+                $data->amount = $amount;
+
                 $Folio = process_sale($db,$data,$data->orderID,'paypal');
 
                 $sql = "SELECT Currency FROM account ";
@@ -788,7 +818,9 @@ function processpayment_paypal_sale($table_name,$db, $method, $id, $data){
                     'success'    => true,
                     'payment_id' => 'PaySale - '.$Folio,
                     'status'     => 'success',
-                    'amount'     => $data->amount,
+                    'amount'     => $amount,
+                    'base_amount' => $baseAmount,
+                    'extra_amount' => $extraAmount,
                     'currency'   => $Currency,
                     'message' => '¡Pago realizado con éxito!',
                     'transaction_id' => $data->orderID,
@@ -815,6 +847,10 @@ function processpayment_square_sale($table_name,$db, $method, $id, $data){
             $square_account = $stmt->fetch();       
             $accessToken = $square_account['Token'];
             $locationId  = $square_account['LocalId'];
+            $isSandbox = $square_account['sandbox'];
+            $extra_pctj = (int) ($square_account['extracharge'] ?? 0) === 1
+                ? (float) ($square_account['percentage'] ?? 0) / 100
+                : 0;
             // ── Recibir token del frontend ─────────────────────────────────────────────────
             //$input = json_decode(file_get_contents('php://input'), true);
             $token_id = $data->token_id ?? null;
@@ -827,8 +863,19 @@ function processpayment_square_sale($table_name,$db, $method, $id, $data){
                 $tokenId    = $data->token_id ?? null;
                 $token      = $data->token ?? null;
                 $deviceId   = $data->deviceIdHiddenFieldName ?? null;
-                $amount     = $data->amount ?? 0;
-                $amount = $amount * 100;
+                $baseAmount = (float) ($data->amount ?? 0);
+                if ($baseAmount <= 0) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'El monto debe ser mayor a 0']);
+                    exit;
+                }
+                $baseAmountCents = (int) round($baseAmount * 100);
+                $extraPctj = (float) $extra_pctj;
+                $extraAmountCents = $extraPctj > 0
+                    ? (int) round($baseAmountCents * $extraPctj)
+                    : 0;
+                $amount = $baseAmountCents + $extraAmountCents;
+                $finalAmount = $amount / 100;
                 $ahora = date("Y-m-d H:i:s");            
 
                 // Datos del cliente
@@ -839,27 +886,68 @@ function processpayment_square_sale($table_name,$db, $method, $id, $data){
                     'phone_number' => $data->phone ?? '5500000000'
                 ];
             // ── Inicializar cliente Square (v45) ───────────────────────────────────────────
+            
             $square = new SquareClient(
                 token: $accessToken,
-                options: ['baseUrl' => 'https://connect.squareup.com']
+                options: $isSandbox
+                    ? ['baseUrl' => 'https://connect.squareupsandbox.com']
+                    : ['baseUrl' => 'https://connect.squareup.com']
             );
-            //options: ['baseUrl' => 'https://connect.squareupsandbox.com'] 
             // ── Crear el pago ──────────────────────────────────────────────────────────────
             try {
+                $lineItems = [
+                    new OrderLineItem([
+                        'name' => 'Pago de venta',
+                        'quantity' => '1',
+                        'basePriceMoney' => new Money([
+                            'amount' => $baseAmountCents,
+                            'currency' => Currency::Usd->value,
+                        ]),
+                    ]),
+                ];
+
+                if ($extraAmountCents > 0) {
+                    $lineItems[] = new OrderLineItem([
+                        'name' => 'Cargo por tarjeta (' . number_format($extraPctj * 100, 2) . '%)',
+                        'quantity' => '1',
+                        'basePriceMoney' => new Money([
+                            'amount' => $extraAmountCents,
+                            'currency' => Currency::Usd->value,
+                        ]),
+                    ]);
+                }
+
+                $orderResponse = $square->orders->create(
+                    request: new CreateOrderRequest([
+                        'idempotencyKey' => uniqid('OrdenPagoSale_', true),
+                        'order' => new Order([
+                            'locationId' => $locationId,
+                            'lineItems' => $lineItems,
+                        ]),
+                    ])
+                );
+                $order = $orderResponse->getOrder();
+                if ($order === null || $order->getId() === null) {
+                    throw new RuntimeException('Square no devolvió la orden creada.');
+                }
+
                 $response = $square->payments->create(
                     request: new CreatePaymentRequest([
                         'idempotencyKey' => uniqid('Pago_', true), // clave única por transacción
                         'sourceId'       => $token_id,
                         'locationId'     => $locationId,
+                        'orderId'        => $order->getId(),
                         'amountMoney'    => new Money([
-                            'amount'   => $amount,           // en centavos: 1000 = $10.00 USD
+                            'amount'   => $amount,
                             'currency' => Currency::Usd->value,
                         ]),
-                        'note' => 'Pago total de producto - ' . $customerData['name'],
+                        'note' => 'Pago total de producto - ' . $customerData['name']
+                            . ($extraAmountCents > 0 ? ' | Cargo por tarjeta (' . number_format($extraPctj * 100, 2) . '%)' : ''),
                     ])
                 );
                 $payment = $response->getPayment();     
 
+                $data->amount = $finalAmount;
                 $Folio= process_sale($db,$data,$payment->getId(),'square');
 
                 $sql = "SELECT Currency FROM account ";
@@ -873,7 +961,7 @@ function processpayment_square_sale($table_name,$db, $method, $id, $data){
                     'success'    => true,
                     'payment_id' => 'PaySale - '.$Folio,
                     'status'     => 'success',
-                    'amount'     => $data->amount,
+                    'amount'     => $finalAmount,
                     'currency'   => $Currency,
                     'message' => '¡Pago realizado con éxito!',
                     'transaction_id' => $payment->getId(),
@@ -926,7 +1014,12 @@ function processpayment_sale($table_name,$db, $method, $id, $data){
         $stmt->execute();
         $opay_account = $stmt->fetch();       
         $merchantId = $opay_account['Id'];
-        $privateKey = $opay_account['SecretKey'];            
+        $privateKey = $opay_account['SecretKey'];
+        $isSandbox = $opay_account['sandbox'];
+        $extra_pctj = (int) ($opay_account['extracharge'] ?? 0) === 1
+            ? (float) ($opay_account['percentage'] ?? 0) / 100
+            : 0;
+
         $countryCode = 'MX';
         $clientIp = $_SERVER['REMOTE_ADDR'];
         $isSandbox = true;
@@ -937,7 +1030,21 @@ function processpayment_sale($table_name,$db, $method, $id, $data){
             $tokenId    = $data->token_id;
             $token      = $data->token;
             $deviceId   = $data->deviceIdHiddenFieldName;
-            $amount     = $data->amount;
+            $baseAmount = (float) ($data->amount ?? 0);
+            if ($baseAmount <= 0) {
+                http_response_code(400);
+                echo json_encode(['status' => 'error', 'description' => 'El monto debe ser mayor a 0']);
+                exit;
+            }
+            $baseAmountCents = (int) round($baseAmount * 100);
+            $extraPctj = (float) $extra_pctj;
+            $extraAmountCents = $extraPctj > 0
+                ? (int) round($baseAmountCents * $extraPctj)
+                : 0;
+            $totalAmountCents = $baseAmountCents + $extraAmountCents;
+            $amount = $totalAmountCents / 100;
+            $baseAmount = $baseAmountCents / 100;
+            $extraAmount = $extraAmountCents / 100;
             $ahora = date("Y-m-d H:i:s");
 
 
@@ -956,9 +1063,14 @@ function processpayment_sale($table_name,$db, $method, $id, $data){
             $chargeRequest = [
                 'method' => 'card',
                 'source_id' => $tokenId,
-                'amount' => (float)$amount,
+                'amount' => $amount,
                 'currency' => $Currency,
-                'description' => 'Pago total de producto - ' . $customerData['name'],
+                'description' => 'Pago total de producto - ' . $customerData['name']
+                    . ($extraAmountCents > 0
+                        ? ' | Monto: $' . number_format($baseAmount, 2) . ' MXN'
+                            . ' | Cargo por tarjeta: $' . number_format($extraAmount, 2) . ' MXN'
+                            . ' (' . number_format($extraPctj * 100, 2) . '%)'
+                        : ''),
                 'device_session_id' => $deviceId, // Vital para el sistema antifraude
                 'customer' => $customerData,
                 // Si quieres habilitar 3D Secure para mayor seguridad:
@@ -969,6 +1081,7 @@ function processpayment_sale($table_name,$db, $method, $id, $data){
             $charge = $openpay->charges->create($chargeRequest);
             // 5. Respuesta según el estado del pago
             if ($charge->status == 'completed') {
+                $data->amount = $amount;
                 $Folio = process_sale($db,$data,$charge->id,'opay');
 
                 $sql = "SELECT Currency FROM account ";
@@ -982,7 +1095,9 @@ function processpayment_sale($table_name,$db, $method, $id, $data){
                     'success'    => true,
                     'payment_id' => 'PaySale - '.$Folio,
                     'status'     => 'success',
-                    'amount'     => $data->amount,
+                    'amount'     => $amount,
+                    'base_amount' => $baseAmount,
+                    'extra_amount' => $extraAmount,
                     'currency'   => $Currency,
                     'message' => '¡Pago realizado con éxito!',
                     'transaction_id' => $charge->id,
@@ -1033,9 +1148,30 @@ function processpayment_paypal($table_name,$db, $method, $id, $data){
         case 'POST': 
 
                 $token      = $data->token ?? null;
-                $amount     = $data->amount ?? 0;
+                $amount     = (float) ($data->amount ?? 0);
                 $OrdeId      = $data->orderID ?? '';
                 $ahora = date("Y-m-d H:i:s");
+                if ($amount <= 0) {
+                    http_response_code(400);
+                    echo json_encode(['status' => 'error', 'description' => 'El monto debe ser mayor a 0']);
+                    exit;
+                }
+
+                $stmt = $db->prepare("SELECT extracharge, percentage FROM paypal_account LIMIT 1");
+                $stmt->execute();
+                $paypalAccount = $stmt->fetch(PDO::FETCH_ASSOC);
+                $extraPctj = (int) ($paypalAccount['extracharge'] ?? 0) === 1
+                    ? (float) ($paypalAccount['percentage'] ?? 0) / 100
+                    : 0;
+                $totalAmountCents = (int) round($amount * 100);
+                $baseAmountCents = $extraPctj > 0
+                    ? (int) round($totalAmountCents / (1 + $extraPctj))
+                    : $totalAmountCents;
+                $extraAmountCents = $totalAmountCents - $baseAmountCents;
+                $amount = $totalAmountCents / 100;
+                $baseAmount = $baseAmountCents / 100;
+                $extraAmount = $extraAmountCents / 100;
+
                 $stmt = $db->prepare("SELECT * FROM quotes WHERE UUID = ? AND Status = 'A'");
                 $stmt->execute([$token]);
                 $cotizacion = $stmt->fetch();
@@ -1200,6 +1336,8 @@ function processpayment_paypal($table_name,$db, $method, $id, $data){
                     'currency'   => $Currency,
                     'status' => 'success',
                     'message' => Trd(6),
+                    'base_amount' => $baseAmount,
+                    'extra_amount' => $extraAmount,
                     'transaction_id' => $OrdeId,
                     'url' => 'successpayment.php?Id='.$token.'&TId='.$OrdeId
                 ]);
@@ -1245,6 +1383,10 @@ function processpayment_square($table_name,$db, $method, $id, $data){
             $square_account = $stmt->fetch();       
             $accessToken = $square_account['Token'];
             $locationId  = $square_account['LocalId'];
+            $isSandbox = $square_account['sandbox'];
+            $extra_pctj = (int) ($square_account['extracharge'] ?? 0) === 1
+                ? (float) ($square_account['percentage'] ?? 0) / 100
+                : 0;
             // ── Recibir token del frontend ─────────────────────────────────────────────────
             //$input = json_decode(file_get_contents('php://input'), true);
             $token_id = $data->token_id ?? null;
@@ -1257,8 +1399,18 @@ function processpayment_square($table_name,$db, $method, $id, $data){
                 $tokenId    = $data->token_id ?? null;
                 $token      = $data->token ?? null;
                 $deviceId   = $data->deviceIdHiddenFieldName ?? null;
-                $amount     = $data->amount ?? 0;
-                $amount = $amount * 100;
+                $baseAmount = (float) ($data->amount ?? 0);
+                if ($baseAmount <= 0) {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'error' => 'El monto debe ser mayor a 0']);
+                    exit;
+                }
+                $baseAmountCents = (int) round($baseAmount * 100);
+                $extraPctj = (float) $extra_pctj;
+                $extraAmountCents = $extraPctj > 0
+                    ? (int) round($baseAmountCents * $extraPctj)
+                    : 0;
+                $amount = $baseAmountCents + $extraAmountCents;
                 $ahora = date("Y-m-d H:i:s");
                 $stmt = $db->prepare("SELECT * FROM quotes WHERE UUID = ? AND Status = 'A'");
                 $stmt->execute([$token]);
@@ -1294,23 +1446,63 @@ function processpayment_square($table_name,$db, $method, $id, $data){
                     'phone_number' => $data->phone ?? '5500000000'
                 ];
             // ── Inicializar cliente Square (v45) ───────────────────────────────────────────
+            
             $square = new SquareClient(
                 token: $accessToken,
-                options: ['baseUrl' => 'https://connect.squareup.com'] 
+                options: $isSandbox
+                    ? ['baseUrl' => 'https://connect.squareupsandbox.com']
+                    : ['baseUrl' => 'https://connect.squareup.com']
             );
-            //options: ['baseUrl' => 'https://connect.squareupsandbox.com'] 
             // ── Crear el pago ──────────────────────────────────────────────────────────────
             try {
+                $lineItems = [
+                    new OrderLineItem([
+                        'name' => 'Pago de cotización - Lead #' . $cotizacion['IdQuote'],
+                        'quantity' => '1',
+                        'basePriceMoney' => new Money([
+                            'amount' => $baseAmountCents,
+                            'currency' => Currency::Usd->value,
+                        ]),
+                    ]),
+                ];
+
+                if ($extraAmountCents > 0) {
+                    $lineItems[] = new OrderLineItem([
+                        'name' => 'Cargo por tarjeta (' . number_format($extraPctj * 100, 2) . '%)',
+                        'quantity' => '1',
+                        'basePriceMoney' => new Money([
+                            'amount' => $extraAmountCents,
+                            'currency' => Currency::Usd->value,
+                        ]),
+                    ]);
+                }
+
+                $orderResponse = $square->orders->create(
+                    request: new CreateOrderRequest([
+                        'idempotencyKey' => uniqid('OrdenPago_', true),
+                        'order' => new Order([
+                            'locationId' => $locationId,
+                            'lineItems' => $lineItems,
+                        ]),
+                    ])
+                );
+                $order = $orderResponse->getOrder();
+                if ($order === null || $order->getId() === null) {
+                    throw new RuntimeException('Square no devolvió la orden creada.');
+                }
+
                 $response = $square->payments->create(
                     request: new CreatePaymentRequest([
                         'idempotencyKey' => uniqid('Pago_', true), // clave única por transacción
                         'sourceId'       => $token_id,
                         'locationId'     => $locationId,
+                        'orderId'        => $order->getId(),
                         'amountMoney'    => new Money([
-                            'amount'   => $amount,           // en centavos: 1000 = $10.00 USD
+                            'amount'   => $amount,
                             'currency' => Currency::Usd->value,
                         ]),
-                        'note' => Trd(4) . $customerData['name'],
+                        'note' => Trd(4) . $customerData['name']
+                            . ($extraAmountCents > 0 ? ' | Cargo por tarjeta (' . number_format($extraPctj * 100, 2) . '%)' : ''),
                     ])
                 );
                 $payment = $response->getPayment();
@@ -1483,7 +1675,12 @@ function processpayment($table_name,$db, $method, $id, $data){
         $stmt->execute();
         $opay_account = $stmt->fetch();       
         $merchantId = $opay_account['Id'];
-        $privateKey = $opay_account['SecretKey'];            
+        $privateKey = $opay_account['SecretKey'];
+        $isSandbox = $opay_account['sandbox'];
+        $extra_pctj = (int) ($opay_account['extracharge'] ?? 0) === 1
+            ? (float) ($opay_account['percentage'] ?? 0) / 100
+            : 0;
+
         $countryCode = 'MX';
         $clientIp = $_SERVER['REMOTE_ADDR'];
         $isSandbox = true;
@@ -1494,7 +1691,21 @@ function processpayment($table_name,$db, $method, $id, $data){
             $tokenId    = $data->token_id;
             $token      = $data->token;
             $deviceId   = $data->deviceIdHiddenFieldName;
-            $amount     = $data->amount;
+            $baseAmount = (float) ($data->amount ?? 0);
+            if ($baseAmount <= 0) {
+                http_response_code(400);
+                echo json_encode(['status' => 'error', 'description' => 'El monto debe ser mayor a 0']);
+                exit;
+            }
+            $baseAmountCents = (int) round($baseAmount * 100);
+            $extraPctj = (float) $extra_pctj;
+            $extraAmountCents = $extraPctj > 0
+                ? (int) round($baseAmountCents * $extraPctj)
+                : 0;
+            $totalAmountCents = $baseAmountCents + $extraAmountCents;
+            $amount = $totalAmountCents / 100;
+            $baseAmount = $baseAmountCents / 100;
+            $extraAmount = $extraAmountCents / 100;
             $ahora = date("Y-m-d H:i:s");
             $stmt = $db->prepare("SELECT * FROM quotes WHERE UUID = ? AND Status = 'A'");
             $stmt->execute([$token]);
@@ -1537,9 +1748,14 @@ function processpayment($table_name,$db, $method, $id, $data){
             $chargeRequest = [
                 'method' => 'card',
                 'source_id' => $tokenId,
-                'amount' => (float)$amount,
+                'amount' => $amount,
                 'currency' => $Currency,
-                'description' => Trd(4) . $customerData['name'],
+                'description' => Trd(4) . $customerData['name']
+                    . ($extraAmountCents > 0
+                        ? ' | Monto: $' . number_format($baseAmount, 2) . ' MXN'
+                            . ' | Cargo por tarjeta: $' . number_format($extraAmount, 2) . ' MXN'
+                            . ' (' . number_format($extraPctj * 100, 2) . '%)'
+                        : ''),
                 'device_session_id' => $deviceId, // Vital para el sistema antifraude
                 'customer' => $customerData,
                 // Si quieres habilitar 3D Secure para mayor seguridad:
@@ -1672,6 +1888,8 @@ function processpayment($table_name,$db, $method, $id, $data){
                     'status' => 'success',
                     'message' => Trd(5),
                     'transaction_id' => $charge->id,
+                    'base_amount' => $baseAmount,
+                    'extra_amount' => $extraAmount,
                     'url' => 'successpayment.php?Id='.$token.'&TId='.$charge->id
                 ]);
             } else {
@@ -1815,7 +2033,20 @@ function quote_data($table_name,$db, $method, $id, $data){
             ";
             $stmt = $db->prepare($query);
             $stmt->execute();
-            $gifcrds = $stmt->fetchAll(PDO::FETCH_ASSOC);               
+            $gifcrds = $stmt->fetchAll(PDO::FETCH_ASSOC);  
+            
+            $query = "SELECT SUM(Amount) as Deposit from payments WHERE IdLead = ".$lead['Id']." AND Estatus = 'A'";
+            $stmt = $db->prepare($query);   
+            $stmt->execute();
+            $deposit = $stmt->fetchAll(PDO::FETCH_ASSOC);  
+            
+            $lead['DepositAmount'] = $deposit[0]['Deposit'] ?? 0;
+
+            $query = "SELECT IF(Contrato IS NULL, 0, 1) AS Contrato FROM quotes WHERE IdQuote = ".$lead['Id'];
+            $stmt = $db->prepare($query);   
+            $stmt->execute();
+            $contract = $stmt->fetchAll(PDO::FETCH_ASSOC);  
+
             $respuesta = [
                 'lead'         => $lead,
                 'lead_details'      => $lead_detailss,
@@ -1824,7 +2055,9 @@ function quote_data($table_name,$db, $method, $id, $data){
                 'venue'        => $venue,
                 'script_push'  => $push,
                 'discounts' => $discounts,
-                'gifcrds' => $gifcrds
+                'gifcrds' => $gifcrds,
+                'deposit' => $deposit,
+                'contract' => $contract
             ];            
             http_response_code(200);
             echo json_encode($respuesta);
@@ -3357,6 +3590,34 @@ function get_blog($table_name,$db, $method, $id, $data){
 
 function get_blog_by_slug($table_name,$db, $method, $id, $data){
     get_blog($table_name, $db, $method, $id, $data);
+}
+
+function get_blackout_dates($db, $method){
+    if ($method !== 'GET') {
+        http_response_code(405);
+        echo json_encode(['status' => 'error', 'message' => 'Método HTTP no permitido.']);
+        return;
+    }
+
+    try {
+        $stmt = $db->prepare(
+            'SELECT id, fecha_inicio, fecha_fin, motivo, notas
+             FROM blackout_dates
+             WHERE activo = 1 AND fecha_fin >= CURDATE()
+             ORDER BY fecha_inicio ASC, id ASC'
+        );
+        $stmt->execute();
+
+        http_response_code(200);
+        echo json_encode([
+            'status' => 'success',
+            'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+        ]);
+    } catch (PDOException $e) {
+        error_log('Error al consultar fechas no operativas: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => 'No se pudieron consultar las fechas no operativas.']);
+    }
 }
 
 function get_all_sales($table_name,$db, $method, $id, $data){
@@ -5081,11 +5342,18 @@ function tnks($table_name,$db, $method, $id, $data){
             // Credenciales
             $merchantId = $opay_account['Id'];
             $privateKey = $opay_account['SecretKey'];
+            $isSandbox = $opay_account['sandbox'];
+            $extra_pctj = $opay_account['percentage']/100;
+            
+            
+            
+            
             $pagoRegistrado = false;
             $mensaje = "";
             try {
                 // Intentamos consultar el checkout
-                $url = "https://sandbox-api.openpay.mx/v1/$merchantId/checkouts/$idCheckout";
+                //$url = "https://sandbox-api.openpay.mx/v1/$merchantId/checkouts/$idCheckout";
+                $url = $isSandbox ? "https://sandbox-api.openpay.mx/v1/$merchantId/checkouts/$idCheckout" : "https://api.openpay.mx/v1/$merchantId/checkouts/$idCheckout";
                 //echo $url;
                 $ch = curl_init();
                 curl_setopt($ch, CURLOPT_URL, $url);
@@ -5098,7 +5366,8 @@ function tnks($table_name,$db, $method, $id, $data){
                 // SI EL CHECKOUT DA 404, PERO TENEMOS UN ORDER_ID, BUSCAMOS POR TRANSACCION
                 if ($httpCode == 404) {
                     $orderIdBusqueda = 'LIQ-' . $idLead.'-1';
-                    $urlBusqueda = "https://sandbox-api.openpay.mx/v1/$merchantId/charges?order_id=" . $orderIdBusqueda;
+                    //$urlBusqueda = "https://sandbox-api.openpay.mx/v1/$merchantId/charges?order_id=" . $orderIdBusqueda;
+                    $urlBusqueda = $isSandbox ? "https://sandbox-api.openpay.mx/v1/$merchantId/charges?order_id=". $orderIdBusqueda : "https://api.openpay.mx/v1/$merchantId/charges?order_id=". $orderIdBusqueda;
                     //echo $urlBusqueda;
                     curl_setopt($ch, CURLOPT_URL, $urlBusqueda);
                     $responseBusqueda = curl_exec($ch);
@@ -5184,16 +5453,22 @@ function tnks_square($table_name,$db, $method, $id, $data){
             $stmt = $db->prepare("SELECT * FROM  square_account");
             $stmt->execute();
             $square_account = $stmt->fetch();     
+
             $accessToken = $square_account['Token'];
-            $locationId  = $square_account['LocalId'];   
+            $locationId  = $square_account['LocalId'];  
+            $isSandbox = $square_account['sandbox'];
+            $extra_pctj = $square_account['percentage']/100;
+
             $pagoRegistrado = false;
             $mensaje = "";
-            $orderId = 'LIQ-' . $idLead.'-1'; 
+            $orderId = 'LIQ-' . $idLead.'-2';
+            
             $square = new SquareClient(
                 token: $accessToken,
-                options: ['baseUrl' => 'https://connect.squareup.com']
+                options: $isSandbox
+                    ? ['baseUrl' => 'https://connect.squareupsandbox.com']
+                    : ['baseUrl' => 'https://connect.squareup.com']
             );
-            //options: ['baseUrl' => 'https://connect.squareupsandbox.com'] 
             $resultado = verificarPagoLink($square, $orderId,$db);
             if ($resultado['pagado'] == 'COMPLETED') {
                 $transactionId = $resultado['transaccion_id'];

@@ -606,6 +606,10 @@ switch ($resource) {
         blog_posts($resource, $db, $method, $id, $data, (int) $decoded_token->data->id);
         break;
 
+    case 'blackout_dates':
+        blackout_dates($db, $method, $id, $data, (int) $decoded_token->data->id);
+        break;
+
     case 'banner_images':
         banner_images($db, $method, $id, $data);
         break;

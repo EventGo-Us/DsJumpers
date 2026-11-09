@@ -13,8 +13,11 @@ require 'vendor/autoload.php';
 
 use Square\SquareClient;
 use Square\Payments\Requests\CreatePaymentRequest;
+use Square\Types\CreateOrderRequest;
 use Square\Types\Money;
 use Square\Types\Currency;
+use Square\Types\Order;
+use Square\Types\OrderLineItem;
 use Square\Exceptions\SquareApiException;
 use Square\Exceptions\SquareException;
 
@@ -28,22 +31,36 @@ if (!$token_id) {
     exit;
 }
 
-    $tokenId    = $_POST['token_id'] ?? null;
-    $IdLead      = $_POST['token'] ?? null;
-    $deviceId   = $_POST['deviceIdHiddenFieldName'] ?? null;
-    $amount     = $_POST['monto'] ?? 0;
-    
-    $amount = $amount * 100;
-
-    $ahora = date("Y-m-d H:i:s");
-
     $stmt = $db->prepare("SELECT * FROM  square_account");
     $stmt->execute();
     $square_account = $stmt->fetch();       
 
     $accessToken = $square_account['Token'];
     $locationId  = $square_account['LocalId'];
+    $isSandbox = $square_account['sandbox'];    
+    $extra_pctj = (int) ($square_account['extracharge'] ?? 0) === 1
+        ? (float) ($square_account['percentage'] ?? 0) / 100
+        : 0;
 
+    $tokenId    = $_POST['token_id'] ?? null;
+    $IdLead      = $_POST['token'] ?? null;
+    $deviceId   = $_POST['deviceIdHiddenFieldName'] ?? null;
+    $amount = (float) ($_POST['monto'] ?? 0);
+    if ($amount <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'El monto debe ser mayor a 0']);
+        exit;
+    }
+
+    $totalAmountCents = (int) round($amount * 100);
+    $extraPctj = (float) $extra_pctj;
+    $baseAmountCents = $extraPctj > 0
+        ? (int) round($totalAmountCents / (1 + $extraPctj))
+        : $totalAmountCents;
+    $extraAmountCents = $totalAmountCents - $baseAmountCents;
+
+    $ahora = date("Y-m-d H:i:s");
+    
     $lead['IdBranch'] = 1;
 
     $stmt = $db->prepare("SELECT customer_id FROM sales WHERE id = ? ");
@@ -66,21 +83,61 @@ if (!$token_id) {
 // ── Inicializar cliente Square (v45) ───────────────────────────────────────────
 $square = new SquareClient(
     token: $accessToken,
-    options: ['baseUrl' => 'https://connect.squareup.com'] 
+    options: $isSandbox
+        ? ['baseUrl' => 'https://connect.squareupsandbox.com']
+        : ['baseUrl' => 'https://connect.squareup.com']
 );
-//options: ['baseUrl' => 'https://connect.squareupsandbox.com'] 
+
 // ── Crear el pago ──────────────────────────────────────────────────────────────
 try {
+    $lineItems = [
+        new OrderLineItem([
+            'name' => 'Pago de venta - Sale #' . $IdLead,
+            'quantity' => '1',
+            'basePriceMoney' => new Money([
+                'amount' => $baseAmountCents,
+                'currency' => Currency::Usd->value,
+            ]),
+        ]),
+    ];
+
+    if ($extraAmountCents > 0) {
+        $lineItems[] = new OrderLineItem([
+            'name' => 'Cargo por tarjeta (' . number_format($extraPctj * 100, 2) . '%)',
+            'quantity' => '1',
+            'basePriceMoney' => new Money([
+                'amount' => $extraAmountCents,
+                'currency' => Currency::Usd->value,
+            ]),
+        ]);
+    }
+
+    $orderResponse = $square->orders->create(
+        request: new CreateOrderRequest([
+            'idempotencyKey' => uniqid('OrdenPagoSale_', true),
+            'order' => new Order([
+                'locationId' => $locationId,
+                'lineItems' => $lineItems,
+            ]),
+        ])
+    );
+    $order = $orderResponse->getOrder();
+    if ($order === null || $order->getId() === null) {
+        throw new RuntimeException('Square no devolvió la orden creada.');
+    }
+
     $response = $square->payments->create(
         request: new CreatePaymentRequest([
             'idempotencyKey' => uniqid('Pago_', true), // clave única por transacción
             'sourceId'       => $token_id,
             'locationId'     => $locationId,
+            'orderId'        => $order->getId(),
             'amountMoney'    => new Money([
-                'amount'   => $amount,           // en centavos: 1000 = $10.00 USD
+                'amount'   => $totalAmountCents,
                 'currency' => Currency::Usd->value,
             ]),
-            'note' => 'Pago de anticipo/servicio - ' . $customerData['name'],
+            'note' => 'Pago de venta - ' . $customerData['name']
+                . ($extraAmountCents > 0 ? ' | Cargo por tarjeta (' . number_format($extraPctj * 100, 2) . '%)' : ''),
         ])
     );
 
@@ -95,7 +152,8 @@ try {
     }
     $Folio+=1;    
 
-    $amount = $amount / 100;
+    $amount = $totalAmountCents / 100;
+    $baseAmount = $baseAmountCents / 100;
 
     $sqlPay = "INSERT INTO payments_sale (IdSale,Folio,DateTime,Platform,Amount,Currency,TransactionId,Estatus,Usuario,Type) 
                             VALUES  (?,?,now(),'Square',?,?,?,'A','','Pay')";
@@ -106,7 +164,7 @@ try {
     $stmt->execute([$Folio,$lead['IdBranch']]);        
 
     $stmt = $db->prepare(" UPDATE sales SET Balance = Balance - ? WHERE Id = ?");
-    $stmt->execute([$amount, $IdLead]);
+    $stmt->execute([$baseAmount, $IdLead]);
 
     //METER A OPERACION!!
     //process_op($IdLead,$db);

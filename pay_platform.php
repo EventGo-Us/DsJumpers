@@ -73,6 +73,22 @@
                                 <label class="small fw-bold">Public Key</label>
                                 <input type="text" class="form-control form-control-sm" name="opay_public" id="opay_public">
                             </div>
+                            <div class="mb-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="opay_sandbox" id="opay_sandbox">
+                                    <label class="form-check-label small fw-bold" for="opay_sandbox">Sandbox</label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="opay_extracharge" id="opay_extracharge">
+                                    <label class="form-check-label small fw-bold" for="opay_extracharge"><?= Trd(16);?></label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="small fw-bold" for="opay_percentage"><?= Trd(17);?></label>
+                                <input type="number" class="form-control form-control-sm" name="opay_percentage" id="opay_percentage" min="0" step="0.01">
+                            </div>
                         </div>
 
                         <div id="section_SQUARE" class="payment-section d-none border p-3 rounded bg-light mb-4">
@@ -88,6 +104,22 @@
                             <div class="mb-2">
                                 <label class="small fw-bold">Token</label>
                                 <input type="text" class="form-control form-control-sm" name="square_token" id="square_token">
+                            </div>
+                            <div class="mb-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="square_sandbox" id="square_sandbox">
+                                    <label class="form-check-label small fw-bold" for="square_sandbox">Sandbox</label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="square_extracharge" id="square_extracharge">
+                                    <label class="form-check-label small fw-bold" for="square_extracharge"><?= Trd(16);?></label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="small fw-bold" for="square_percentage"><?= Trd(17);?></label>
+                                <input type="number" class="form-control form-control-sm" name="square_percentage" id="square_percentage" min="0" step="0.01">
                             </div>
                         </div>
 
@@ -110,6 +142,22 @@
                             <div class="mb-2">
                                 <label class="small fw-bold">Secret Key</label>
                                 <input type="text" class="form-control form-control-sm" name="paypal_secret" id="paypal_secret">
+                            </div>
+                            <div class="mb-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="paypal_sandbox" id="paypal_sandbox">
+                                    <label class="form-check-label small fw-bold" for="paypal_sandbox">Sandbox</label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" name="paypal_extracharge" id="paypal_extracharge">
+                                    <label class="form-check-label small fw-bold" for="paypal_extracharge"><?= Trd(16);?></label>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <label class="small fw-bold" for="paypal_percentage"><?= Trd(17);?></label>
+                                <input type="number" class="form-control form-control-sm" name="paypal_percentage" id="paypal_percentage" min="0" step="0.01">
                             </div>
                         </div>
 
@@ -172,9 +220,15 @@ $(document).ready(function() {
                     $('#opay_id').val(data.opay.Id);
                     $('#opay_secret').val(data.opay.SecretKey);
                     $('#opay_public').val(data.opay.PublicKey);
+                    $('#opay_sandbox').prop('checked', data.opay.sandbox == 1);
+                    $('#opay_extracharge').prop('checked', data.opay.extracharge == 1);
+                    $('#opay_percentage').val(data.opay.percentage);
                     
                     $('#paypal_id').val(data.paypal.Id);
                     $('#paypal_secret').val(data.paypal.SecretKey);
+                    $('#paypal_sandbox').prop('checked', data.paypal.sandbox == 1);
+                    $('#paypal_extracharge').prop('checked', data.paypal.extracharge == 1);
+                    $('#paypal_percentage').val(data.paypal.percentage);
                     if (data.paypal.Active == 1){
                         sectionPaypal.classList.remove("d-none");
                         $('#paypal_active').prop('checked', true);
@@ -189,6 +243,9 @@ $(document).ready(function() {
                     $('#square_id').val(data.square.Id);
                     $('#square_local').val(data.square.LocalId);
                     $('#square_token').val(data.square.Token);
+                    $('#square_sandbox').prop('checked', data.square.sandbox == 1);
+                    $('#square_extracharge').prop('checked', data.square.extracharge == 1);
+                    $('#square_percentage').val(data.square.percentage);
                 }
             }
         });

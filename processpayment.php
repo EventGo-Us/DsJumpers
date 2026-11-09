@@ -23,9 +23,14 @@ $opay_account = $stmt->fetch();
 
 $merchantId = $opay_account['Id'];
 $privateKey = $opay_account['SecretKey'];
+$isSandbox  = $opay_account['sandbox'];
+$extra_pctj = (int) ($opay_account['extracharge'] ?? 0) === 1
+    ? (float) ($opay_account['percentage'] ?? 0) / 100
+    : 0;
+
 $countryCode = 'MX';
 $clientIp = $_SERVER['REMOTE_ADDR'];
-$isSandbox = true;
+
 
 try {
     $openpay = Openpay::getInstance($merchantId, $privateKey,$countryCode,$clientIp);
@@ -36,7 +41,22 @@ try {
     $tokenId    = $_POST['token_id'] ?? null;
     $IdLead      = $_POST['token'] ?? null;
     $deviceId   = $_POST['deviceIdHiddenFieldName'] ?? null;
-    $amount     = $_POST['monto'] ?? 0;
+    $amount = (float) ($_POST['monto'] ?? 0);
+    if ($amount <= 0) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'description' => 'El monto debe ser mayor a 0']);
+        exit;
+    }
+
+    $totalAmountCents = (int) round($amount * 100);
+    $extraPctj = (float) $extra_pctj;
+    $baseAmountCents = $extraPctj > 0
+        ? (int) round($totalAmountCents / (1 + $extraPctj))
+        : $totalAmountCents;
+    $extraAmountCents = $totalAmountCents - $baseAmountCents;
+    $amount = $totalAmountCents / 100;
+    $baseAmount = $baseAmountCents / 100;
+    $extraAmount = $extraAmountCents / 100;
     
     $ahora = date("Y-m-d H:i:s");
 
@@ -70,9 +90,14 @@ try {
     $chargeRequest = [
         'method' => 'card',
         'source_id' => $tokenId,
-        'amount' => (float)$amount,
+        'amount' => $amount,
         'currency' => $Currency,
-        'description' => 'Pago de anticipo/servicio - ' . $customerData['name'],
+        'description' => 'Pago de anticipo/servicio - ' . $customerData['name']
+            . ($extraAmountCents > 0
+                ? ' | Monto: $' . number_format($baseAmount, 2) . ' MXN'
+                    . ' | Cargo por tarjeta: $' . number_format($extraAmount, 2) . ' MXN'
+                    . ' (' . number_format($extraPctj * 100, 2) . '%)'
+                : ''),
         'device_session_id' => $deviceId, // Vital para el sistema antifraude
         'customer' => $customerData,
         // Si quieres habilitar 3D Secure para mayor seguridad:
@@ -105,7 +130,7 @@ try {
 
 
         $stmt = $db->prepare(" UPDATE lead SET Status = ?,Balance = Balance - ? WHERE Id = ?");
-        $stmt->execute(['confirmed',$amount, $IdLead]);
+        $stmt->execute(['confirmed',$baseAmount, $IdLead]);
 
         //METER A OPERACION!!
         process_op($IdLead,$db);

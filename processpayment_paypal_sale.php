@@ -16,11 +16,31 @@ try {
 
     $tokenId    = $_POST['token_id'] ?? null;
     $IdLead     = $_POST['token'] ?? null;
-    $monto      = $_POST['monto'] ?? 0;
+    $monto      = (float) ($_POST['monto'] ?? 0);
     //$referencia = $_POST['referencia'] ?? null;
     $tipo_pago  = $_POST['tipo-pago'] ?? null;
     $Currency = 'MXN';
     $ahora = date("Y-m-d H:i:s");
+
+    if ($monto <= 0) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'description' => 'El monto debe ser mayor a 0']);
+        exit;
+    }
+
+    $stmt = $db->prepare("SELECT extracharge, percentage FROM paypal_account LIMIT 1");
+    $stmt->execute();
+    $paypalAccount = $stmt->fetch(PDO::FETCH_ASSOC);
+    $extraPctj = (int) ($paypalAccount['extracharge'] ?? 0) === 1
+        ? (float) ($paypalAccount['percentage'] ?? 0) / 100
+        : 0;
+
+    $totalAmountCents = (int) round($monto * 100);
+    $baseAmountCents = $extraPctj > 0
+        ? (int) round($totalAmountCents / (1 + $extraPctj))
+        : $totalAmountCents;
+    $monto = $totalAmountCents / 100;
+    $baseAmount = $baseAmountCents / 100;
 
     //$stmt = $db->prepare("SELECT IdBranch FROM lead WHERE Id = ? ");
     //$stmt->execute([$IdLead]);
@@ -46,7 +66,7 @@ try {
     $stmt->execute([$Folio,$lead['IdBranch']]);        
 
     $stmt = $db->prepare(" UPDATE sales SET Balance = Balance - ? WHERE Id = ?");
-    $stmt->execute([$monto, $IdLead]);
+    $stmt->execute([$baseAmount, $IdLead]);
 
     //METER A OPERACION!!
     //process_op($IdLead,$db);

@@ -12,11 +12,11 @@ require __DIR__ . '/vendor/autoload.php';
 use Square\SquareClient;
 //use Square\Checkout\Requests\CreatePaymentLinkRequest;
 use Square\Checkout\PaymentLinks\Requests\CreatePaymentLinkRequest;
-use Square\Types\QuickPay;
 use Square\Types\Money;
+use Square\Types\Order;
+use Square\Types\OrderLineItem;
 use Square\Types\CheckoutOptions;
 use Square\Types\PrePopulatedData;
-use Square\Types\BuyerEmailHint;
 use Square\Exceptions\SquareApiException;
 use Square\Exceptions\SquareException;
 
@@ -42,7 +42,11 @@ $stmt = $db->prepare("SELECT * FROM  square_account");
 $stmt->execute();
 $square_account = $stmt->fetch();     
 $accessToken = $square_account['Token'];
-$locationId  = $square_account['LocalId'];    
+$locationId  = $square_account['LocalId'];
+$isSandbox   = $square_account['sandbox'];
+$extra_pctj  = (int) ($square_account['extracharge'] ?? 0) === 1
+    ? (float) ($square_account['percentage'] ?? 0) / 100
+    : 0;
 
 $stmt = $db->prepare("SELECT Organization, Customer FROM  lead WHERE Id = ?");
 $stmt->execute([$idLead]);
@@ -76,17 +80,20 @@ if ($monto <= 0) {
 }
 
 
-// ── Convertir a centavos ───────────────────────────────────────────────────────
-// Monedas sin decimales (JPY, etc.) se manejan igual, pero aquí usamos USD/MXN
-$amountCents = (int) round($monto * 100);
+// ── Agregar el extra y convertir el total a centavos ────────────────────────────
+$extraPctj = (float) $extra_pctj;
+$baseAmountCents = (int) round((float) $monto * 100);
+$extraAmount = $extraPctj > 0
+    ? round((float) $monto * $extraPctj, 2)
+    : 0;
+$extraAmountCents = (int) round($extraAmount * 100);
 
 // ── Cliente Square ─────────────────────────────────────────────────────────────
-$isSandbox = 'sandbox';
 $square = new SquareClient(
     token: $accessToken,
     options: $isSandbox
         ? ['baseUrl' => 'https://connect.squareupsandbox.com']
-        : []
+        : ['baseUrl' => 'https://connect.squareup.com']
 );
 
 // ── Calcular fecha de expiración (ISO 8601) ────────────────────────────────────
@@ -103,7 +110,7 @@ if ($customerName) {
     $fullDescription .= " | Cliente: {$customerName}";
 }
 
-$orderId = 'LIQ-'.$idLead.'-1'; 
+$orderId = 'LIQ-'.$idLead.'-2';
 //uniqid('link_', true)
 // ── Crear Payment Link via Checkout API ────────────────────────────────────────
 
@@ -119,18 +126,7 @@ try {
     $listResponse = $square->checkout->paymentLinks->list();
 
     foreach ($listResponse as $link) {
-        // Comparamos por el checkoutPageUrl o por la descripción que contiene el idLead
-        // Square no expone el idempotencyKey en el listado, así que buscamos
-        // en la descripción o en el orderId asociado al link
-        $linkDescription = $link->getDescription() ?? '';
-        $linkOrderId     = $link->getOrderId()     ?? '';
-
-        // Buscar por descripción (contiene el nombre del lead) 
-        // O si guardas el orderId en tu BD, compara directamente
-        if (
-            str_contains($linkDescription, "| Cliente: {$customerName}") ||
-            str_contains($linkDescription, $idLead)
-        ) {
+        if ($link->getOrderId() === $orderId) {
             $existingLink = $link;
             break;
         }
@@ -158,18 +154,34 @@ try {
 
 
 try {
+    $lineItems = [
+        new OrderLineItem([
+            'name' => $description,
+            'quantity' => '1',
+            'basePriceMoney' => new Money([
+                'amount' => $baseAmountCents,
+                'currency' => $currency,
+            ]),
+        ]),
+    ];
+
+    if ($extraAmountCents > 0) {
+        $lineItems[] = new OrderLineItem([
+            'name' => 'Cargo por tarjeta (' . number_format($extraPctj * 100, 2) . '%)',
+            'quantity' => '1',
+            'basePriceMoney' => new Money([
+                'amount' => $extraAmountCents,
+                'currency' => $currency,
+            ]),
+        ]);
+    }
+
     $response = $square->checkout->paymentLinks->create(
         request: new CreatePaymentLinkRequest([
             'idempotencyKey' => $orderId,
-
-            // QuickPay: forma rápida de crear un link sin necesidad de Order previa
-            'quickPay' => new QuickPay([
-                'name'       => $description,
-                'priceMoney' => new Money([
-                    'amount'   => $amountCents,
-                    'currency' => $currency,
-                ]),
+            'order' => new Order([
                 'locationId' => $locationId,
+                'lineItems' => $lineItems,
             ]),
 
             // Opciones del checkout

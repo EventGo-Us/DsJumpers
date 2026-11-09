@@ -1,5 +1,14 @@
 <?php 
     $PayPlatform = $account['Pay_platform'];
+    $percentageTable = $PayPlatform === 'OPAY' ? 'opay_account' : 'square_account';
+    $stmt = $db->query("SELECT extracharge, percentage FROM {$percentageTable} LIMIT 1");
+    $paymentAccount = $stmt->fetch(PDO::FETCH_ASSOC);
+    $extra_pctj = (int) ($paymentAccount['extracharge'] ?? 0) === 1
+        ? (float) ($paymentAccount['percentage'] ?? 0) / 100
+        : 0;
+    $paypalExtraPctj = (int) ($paypal_account['extracharge'] ?? 0) === 1
+        ? (float) ($paypal_account['percentage'] ?? 0) / 100
+        : 0;
 ?>
     <script type="text/javascript" src="https://openpay.s3.amazonaws.com/openpay.v1.min.js"></script>
     <script type='text/javascript' src="https://openpay.s3.amazonaws.com/openpay-data.v1.min.js"></script>
@@ -76,7 +85,7 @@
                             <select class="form-select form-select-sm" id="tipo_pago" required>
                                 <option value=""><?= Trd(130) ?></option>
                                 <option value="efectivo"><?= Trd(131) ?></option>
-                                <option value="tarjeta"><?= $PayPlatform ." - ".Trd(132) ?></option>
+                                <option value="tarjeta"><?= Trd(132) ?></option>
                                 <?php 
                                 if ($paypal_account['Active'] == 1){
                                     echo '<option value="paypal">PAYPAL</option>';
@@ -166,11 +175,15 @@
                     <div class="text-center mt-3">
 
                     <?php if ($PayPlatform == 'OPAY'){?>
+                    <!--
                           <img src="https://www.openpay.mx/_ipx/_/img/header/openpay-color.svg" alt="Openpay" style="height: 25px; opacity: 0.6;">
+                    -->
                     <?php }
                         else{
                     ?>
+                    <!--
                           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Square%2C_Inc._logo.svg/1280px-Square%2C_Inc._logo.svg.png" alt="Square" style="height: 25px; opacity: 0.6;">
+                    -->
                     <?php
                     }
                     ?>                    
@@ -191,6 +204,11 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <span class="text-muted"><?= Trd(143) ?>:</span>
                 <span class="fw-bold"  id="display-saldo-pago">$0.00</span>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-2 d-none" id="div-pago-extra">
+                <span class="text-muted"><?= Trd(179) ?> (<?= number_format((float)$extra_pctj * 100, 2) ?>%):</span>
+                <span class="fw-bold" id="display-pago-extra">$0.00</span>
             </div>
 
             <hr>
@@ -234,7 +252,29 @@
         },
 
         createOrder: function(data, actions) {
-            const monto = parseFloat($('#monto_pago').val()) || 0;
+            const amounts = getPayPalPaymentAmounts();
+            const currency = '<?= $account['Currency'] ?>';
+            const items = [{
+                name: 'Pay Lead <?= $IdLead ?>',
+                sku: 'Pay',
+                unit_amount: {
+                    currency_code: currency,
+                    value: amounts.baseAmount
+                },
+                quantity: '1'
+            }];
+
+            if (parseFloat(amounts.extraAmount) > 0) {
+                items.push({
+                    name: 'Cargo PayPal (' + (paypalExtraPctj * 100).toFixed(2) + '%)',
+                    sku: 'PayPalFee',
+                    unit_amount: {
+                        currency_code: currency,
+                        value: amounts.extraAmount
+                    },
+                    quantity: '1'
+                });
+            }
             
             return actions.order.create({
                 application_context: {
@@ -242,27 +282,16 @@
                 },
                 purchase_units: [{
                     amount: {
-                        currency_code: '<?= $account['Currency'] ?>',
-                        value: monto, // El TOTAL absoluto de la orden (25 + 10)
+                        currency_code: currency,
+                        value: amounts.totalAmount,
                         breakdown: {
                             item_total: {
-                                currency_code: '<?= $account['Currency'] ?>',
-                                value: monto // La suma de los subtotales de los items
+                                currency_code: currency,
+                                value: amounts.totalAmount
                             }
                         }
                     },
-                    // AQUÍ PONES TU LISTA DE PRODUCTOS
-                    items: [
-                        {
-                            name: 'Pay Lead <?= $IdLead ?>',       // Nombre del producto 1
-                            sku: 'Pay',                // Identificador único (opcional)
-                            unit_amount: {
-                                currency_code: '<?= $account['Currency'] ?>',
-                                value: monto               // Precio unitario
-                            },
-                            quantity: '1'                    // Cantidad
-                        }
-                    ]
+                    items: items
                 }]
             });
         },
@@ -270,7 +299,7 @@
         onApprove: function(data, actions) {
             return actions.order.capture().then(function(orderData) {
             
-                $('#monto').val($('#monto_pago').val())
+                $('#monto').val(getMontoPagoConExtra().toFixed(2))
                 $('#tipo-pago').val($('#tipo_pago').val())
                 $('#referencia').val($('#refcia').val())            
 
@@ -304,32 +333,62 @@
 
 <script>
 
+const extraPctj = <?= json_encode((float)$extra_pctj) ?>;
+const paypalExtraPctj = <?= json_encode((float) $paypalExtraPctj) ?>;
+
+function getMontoPagoConExtra() {
+    const monto = parseFloat($('#monto_pago').val()) || 0;
+    const tipoPago = $('#tipo_pago').val();
+    const porcentaje = tipoPago === 'tarjeta'
+        ? extraPctj
+        : (tipoPago === 'paypal' ? paypalExtraPctj : 0);
+    const extra = Math.round((monto * porcentaje + Number.EPSILON) * 100) / 100;
+
+    return monto + extra;
+}
+
+function getPayPalPaymentAmounts() {
+    const baseAmountCents = Math.round((parseFloat($('#monto_pago').val()) || 0) * 100);
+    const extraAmountCents = paypalExtraPctj > 0
+        ? Math.round(baseAmountCents * paypalExtraPctj)
+        : 0;
+
+    return {
+        baseAmount: (baseAmountCents / 100).toFixed(2),
+        extraAmount: (extraAmountCents / 100).toFixed(2),
+        totalAmount: ((baseAmountCents + extraAmountCents) / 100).toFixed(2)
+    };
+}
+
+function actualizarResumenPago() {
+    const balanceElement = document.getElementById('Balance');
+    const balance = parseFloat(balanceElement.value || balanceElement.textContent) || 0;
+    const monto = parseFloat($('#monto_pago').val()) || 0;
+    const total = getMontoPagoConExtra();
+    const extra = total - monto;
+    const excedeBalance = monto > balance;
+
+    const tipoPago = $('#tipo_pago').val();
+    const porcentaje = tipoPago === 'tarjeta'
+        ? extraPctj
+        : (tipoPago === 'paypal' ? paypalExtraPctj : 0);
+    $('#div-pago-extra').toggleClass('d-none', porcentaje <= 0);
+    $('#div-pago-extra .text-muted').text(tipoPago === 'paypal' ? 'Cargo PayPal (' + (porcentaje * 100).toFixed(2) + '%):' : 'Extra tarjeta (' + (porcentaje * 100).toFixed(2) + '%):');
+    $('#display-pago-extra').html(formatter.format(extra));
+    $('#display-saldo-hoy').html(formatter.format(balance));
+    $('#display-saldo-pago').html(formatter.format(balance - monto));
+    $('#display-pago-hoy').html(formatter.format(total));
+
+    $('#monto_pago').toggleClass('is-invalid', excedeBalance);
+    $('#monto_error').toggleClass('d-none', !excedeBalance);
+    $('#pay-button').prop('disabled', excedeBalance);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const inputMonto = document.getElementById('monto_pago');
-    const btnPago = document.getElementById('pay-button');
-    const msgError = document.getElementById('monto_error');
 
     inputMonto.addEventListener('input', function() {
-        // Obtenemos el balance. Si es un span/div usamos textContent, si es un input usamos value.
-        const balanceElement = document.getElementById('Balance');
-        const balance = parseFloat(balanceElement.value || balanceElement.textContent) || 0;
-        const monto = parseFloat(this.value) || 0;
-
-        if (monto > balance) {
-            // Estilos de error
-            this.classList.add('is-invalid');
-            msgError.classList.remove('d-none');
-            if(btnPago) btnPago.disabled = true;
-        } else {
-            // Estilos normales
-            this.classList.remove('is-invalid');
-            msgError.classList.add('d-none');
-            if(btnPago) btnPago.disabled = false;
-
-            $('#display-saldo-hoy').html( formatter.format(balance) );
-            $('#display-saldo-pago').html( formatter.format(balance - monto));
-            $('#display-pago-hoy').html(formatter.format(monto) );
-        }
+        actualizarResumenPago();
     });
 });
 
@@ -339,6 +398,7 @@ document.getElementById('tipo_pago').addEventListener('change', function() {
     const divTar = document.getElementById('div_tarjeta');
     const divpaypal = document.getElementById('paypal-button-container');
     const paybuttons = document.getElementById('pay-buttons');
+    actualizarResumenPago();
 
     // Ocultar todo primero
     divRef.classList.add('d-none');
@@ -398,15 +458,13 @@ $('#pay-button').on('click', function(e) {
     const btn = $(this);
     const tipoPago = $('#tipo_pago').val();
     const monto = parseFloat($('#monto_pago').val()) || 0;
-    const balance = parseFloat($('#Balance').val() || $('#Balance').text()) || 0;
-
     // 1. Validaciones básicas de negocio
     if (!tipoPago) {
         //alert("Por favor seleccione un método de pago.");
         lanzarMensaje("<?= Trd(146) ?>","alerta",5000);
         return;
     }
-    if (monto <= 0 || monto > balance) {
+    if (monto <= 0 || monto > (parseFloat($('#Balance').val() || $('#Balance').text()) || 0)) {
         //alert("Monto inválido o excede el saldo pendiente.");
         lanzarMensaje("<?= Trd(147) ?>","alerta",5000);
         return;
@@ -425,7 +483,7 @@ $('#pay-button').on('click', function(e) {
 
 
 function enviarPagoAlServidor(tokenId) {
-    $('#monto').val($('#monto_pago').val())
+    $('#monto').val(getMontoPagoConExtra().toFixed(2))
     $('#tipo-pago').val($('#tipo_pago').val())
     $('#referencia').val($('#refcia').val())
     
@@ -485,14 +543,14 @@ function render_pagos(response){
         listado.insertAdjacentHTML('beforeend', row);
     });
     
-    $('#AmountPaid').val( parseFloat($('#AmountPaid').val()) + parseFloat($('#monto_pago').val()));
+    $('#AmountPaid').val(parseFloat($('#AmountPaid').val()) + (parseFloat($('#monto_pago').val()) || 0));
     $('#tipo_pago').val('')
     $('#refcia').val('');
     $('#monto_pago').val('0.00');
 
     recalculate_totals();
 
-    $('#display-pago-hoy').html(formatter.format('0.00') );    
+    actualizarResumenPago();
 
 }
 
@@ -589,10 +647,14 @@ function render_pagos(response){
 
     $stmt = $db->prepare("SELECT * FROM  square_account");
     $stmt->execute();
-    $square_account = $stmt->fetch();       
-
+    $square_account = $stmt->fetch(); 
+    if($square_account['sandbox']=='1'){
+        echo '<script type="text/javascript" src="https://sandbox.web.squarecdn.com/v1/square.js"></script>';
+    }
+    else{
+        echo '<script type="text/javascript" src="https://web.squarecdn.com/v1/square.js"></script>';
+    }    
 ?>
-    <script type="text/javascript" src="https://web.squarecdn.com/v1/square.js"></script>
     <script>
         const appId = '<?php echo $square_account['Id'];?>';
         const locId = '<?php echo $square_account['LocalId'];?>';

@@ -4040,6 +4040,195 @@ function blog_posts($table_name, $db, $method, $id, $data, $creatorId){
     echo json_encode(['status' => 'error', 'message' => 'Método HTTP no permitido para este recurso.']);
 }
 
+function blackout_dates($db, $method, $id, $data, $creatorId){
+    if ($method === 'GET') {
+        if ($id !== null) {
+            $stmt = $db->prepare('SELECT * FROM blackout_dates WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => (int) $id]);
+            $blackout = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$blackout) {
+                http_response_code(404);
+                echo json_encode(['status' => 'error', 'message' => 'El periodo no operativo no existe.']);
+                return;
+            }
+
+            echo json_encode(['status' => 'success', 'data' => $blackout]);
+            return;
+        }
+
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $limit = 15;
+        $offset = ($page - 1) * $limit;
+        $search = trim((string) ($_GET['search'] ?? ''));
+        $active = $_GET['active'] ?? '';
+        $whereParts = [];
+        $params = [];
+
+        if ($search !== '') {
+            $whereParts[] = '(motivo LIKE :search_reason OR notas LIKE :search_notes)';
+            $params[':search_reason'] = '%' . $search . '%';
+            $params[':search_notes'] = '%' . $search . '%';
+        }
+        if ($active === '0' || $active === '1') {
+            $whereParts[] = 'activo = :active';
+            $params[':active'] = (int) $active;
+        }
+        $where = $whereParts ? ' WHERE ' . implode(' AND ', $whereParts) : '';
+
+        $stmt = $db->prepare(
+            "SELECT id, fecha_inicio, fecha_fin, motivo, notas, activo, fecha_actualizacion
+             FROM blackout_dates{$where}
+             ORDER BY fecha_inicio DESC, id DESC
+             LIMIT :limit OFFSET :offset"
+        );
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $blackouts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM blackout_dates{$where}");
+        foreach ($params as $key => $value) {
+            $countStmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $countStmt->execute();
+
+        echo json_encode([
+            'status' => 'success',
+            'data' => $blackouts,
+            'page' => $page,
+            'total' => (int) $countStmt->fetchColumn(),
+            'limit' => $limit
+        ]);
+        return;
+    }
+
+    if ($method === 'POST' || $method === 'PUT') {
+        $blackoutId = $method === 'PUT' ? (int) $id : 0;
+        if ($method === 'PUT' && $blackoutId < 1) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'ID de periodo no válido.']);
+            return;
+        }
+
+        $startDate = blackout_date_value($data->fecha_inicio ?? null);
+        $endDate = blackout_date_value($data->fecha_fin ?? null);
+        $reason = trim((string) ($data->motivo ?? ''));
+        $notes = trim((string) ($data->notas ?? ''));
+        $active = filter_var($data->activo ?? null, FILTER_VALIDATE_INT);
+
+        if ($startDate === false || $endDate === false || $endDate < $startDate) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'El periodo de fechas no es válido.']);
+            return;
+        }
+        if ($reason === '' || mb_strlen($reason, 'UTF-8') > 150) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'El motivo es obligatorio y debe tener hasta 150 caracteres.']);
+            return;
+        }
+        if (mb_strlen($notes, 'UTF-8') > 1000) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Las notas no pueden exceder 1000 caracteres.']);
+            return;
+        }
+        if (!in_array($active, [0, 1], true)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'El estado del periodo no es válido.']);
+            return;
+        }
+
+        try {
+            if ($method === 'POST') {
+                $stmt = $db->prepare(
+                    'INSERT INTO blackout_dates (fecha_inicio, fecha_fin, motivo, notas, activo, creador_id)
+                     VALUES (:fecha_inicio, :fecha_fin, :motivo, :notas, :activo, :creador_id)'
+                );
+                $stmt->execute([
+                    ':fecha_inicio' => $startDate,
+                    ':fecha_fin' => $endDate,
+                    ':motivo' => $reason,
+                    ':notas' => $notes !== '' ? $notes : null,
+                    ':activo' => $active,
+                    ':creador_id' => $creatorId
+                ]);
+                $blackoutId = (int) $db->lastInsertId();
+            } else {
+                $checkStmt = $db->prepare('SELECT id FROM blackout_dates WHERE id = :id LIMIT 1');
+                $checkStmt->execute([':id' => $blackoutId]);
+                if (!$checkStmt->fetchColumn()) {
+                    http_response_code(404);
+                    echo json_encode(['status' => 'error', 'message' => 'El periodo no operativo no existe.']);
+                    return;
+                }
+
+                $stmt = $db->prepare(
+                    'UPDATE blackout_dates
+                     SET fecha_inicio = :fecha_inicio, fecha_fin = :fecha_fin, motivo = :motivo,
+                         notas = :notas, activo = :activo
+                     WHERE id = :id'
+                );
+                $stmt->execute([
+                    ':fecha_inicio' => $startDate,
+                    ':fecha_fin' => $endDate,
+                    ':motivo' => $reason,
+                    ':notas' => $notes !== '' ? $notes : null,
+                    ':activo' => $active,
+                    ':id' => $blackoutId
+                ]);
+            }
+
+            http_response_code($method === 'POST' ? 201 : 200);
+            echo json_encode(['status' => 'success', 'id' => $blackoutId]);
+        } catch (PDOException $e) {
+            error_log('Error al guardar fechas no operativas: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'No se pudo guardar el periodo no operativo.']);
+        }
+        return;
+    }
+
+    if ($method === 'DELETE') {
+        $blackoutId = (int) $id;
+        if ($blackoutId < 1) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'ID de periodo no válido.']);
+            return;
+        }
+
+        $stmt = $db->prepare('DELETE FROM blackout_dates WHERE id = :id');
+        $stmt->execute([':id' => $blackoutId]);
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            echo json_encode(['status' => 'error', 'message' => 'El periodo no operativo no existe.']);
+            return;
+        }
+
+        echo json_encode(['status' => 'success', 'message' => 'Periodo no operativo eliminado.']);
+        return;
+    }
+
+    http_response_code(405);
+    echo json_encode(['status' => 'error', 'message' => 'Método HTTP no permitido para este recurso.']);
+}
+
+function blackout_date_value($value)
+{
+    if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return false;
+    }
+
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+    $errors = DateTimeImmutable::getLastErrors();
+    if (!$date || ($errors !== false && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+        return false;
+    }
+
+    return $date->format('Y-m-d') === $value ? $value : false;
+}
+
 
 function comments_admin($table_name,$db, $method, $id, $data){
     global $IDS;
@@ -5925,20 +6114,20 @@ function get_pay_platform($table_name,$db, $method, $id, $data){
             $acc = $db->query("SELECT pay_platform FROM account LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             
             // Obtenemos datos de OPAY
-            $opay = $db->query("SELECT Id, SecretKey, PublicKey FROM opay_account LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $opay = $db->query("SELECT Id, SecretKey, PublicKey, sandbox, extracharge, percentage FROM opay_account LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 
             // Obtenemos datos de OPAY
-            $paypal = $db->query("SELECT Id, SecretKey, Active FROM paypal_account LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $paypal = $db->query("SELECT Id, SecretKey, Active, sandbox, extracharge, percentage FROM paypal_account LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 
             
             // Obtenemos datos de SQUARE
-            $square = $db->query("SELECT Id, LocalId, Token FROM square_account LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $square = $db->query("SELECT Id, LocalId, Token, sandbox, extracharge, percentage FROM square_account LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             http_response_code(200);
             echo json_encode([
                 'pay_platform' => $acc['pay_platform'] ?? '',
-                'opay' => $opay ?: ['Id'=>'', 'SecretKey'=>'', 'PublicKey'=>''],
-                'square' => $square ?: ['Id'=>'', 'LocalId'=>'', 'Token'=>''],
-                'paypal' => $paypal ?: ['Id'=>'', 'SecretKey'=>'', 'Active'=>'']
+                'opay' => $opay ?: ['Id'=>'', 'SecretKey'=>'', 'PublicKey'=>'', 'sandbox'=>0, 'extracharge'=>0, 'percentage'=>0],
+                'square' => $square ?: ['Id'=>'', 'LocalId'=>'', 'Token'=>'', 'sandbox'=>0, 'extracharge'=>0, 'percentage'=>0],
+                'paypal' => $paypal ?: ['Id'=>'', 'SecretKey'=>'', 'Active'=>'', 'sandbox'=>0, 'extracharge'=>0, 'percentage'=>0]
             ]);            
 
 
@@ -5970,18 +6159,24 @@ function update_pay_platform($table_name,$db, $method, $id, $data){
 
             // 2. Actualizar la tabla específica
             if ($platform === 'OPAY') {
-                $stmt2 = $db->prepare("UPDATE opay_account SET Id = ?, SecretKey = ?, PublicKey = ? LIMIT 1");
+                $stmt2 = $db->prepare("UPDATE opay_account SET Id = ?, SecretKey = ?, PublicKey = ?, sandbox = ?, extracharge = ?, percentage = ? LIMIT 1");
                 $stmt2->execute([
                     $_POST['opay_id'],
                     $_POST['opay_secret'],
-                    $_POST['opay_public']
+                    $_POST['opay_public'],
+                    isset($_POST['opay_sandbox']) ? 1 : 0,
+                    isset($_POST['opay_extracharge']) ? 1 : 0,
+                    $_POST['opay_percentage'] ?? 0
                 ]);
             } else if ($platform === 'SQUARE') {
-                $stmt2 = $db->prepare("UPDATE square_account SET Id = ?, LocalId = ?, Token = ? LIMIT 1");
+                $stmt2 = $db->prepare("UPDATE square_account SET Id = ?, LocalId = ?, Token = ?, sandbox = ?, extracharge = ?, percentage = ? LIMIT 1");
                 $stmt2->execute([
                     $_POST['square_id'],
                     $_POST['square_local'],
-                    $_POST['square_token']
+                    $_POST['square_token'],
+                    isset($_POST['square_sandbox']) ? 1 : 0,
+                    isset($_POST['square_extracharge']) ? 1 : 0,
+                    $_POST['square_percentage'] ?? 0
                 ]);
             }
             //else if ($platform === 'PAYPAL') {
@@ -5990,11 +6185,14 @@ function update_pay_platform($table_name,$db, $method, $id, $data){
                 }else{
                     $active = 0;
                 }
-                $stmt2 = $db->prepare("UPDATE paypal_account SET Id = ?, SecretKey = ?, Active = ? LIMIT 1");
+                $stmt2 = $db->prepare("UPDATE paypal_account SET Id = ?, SecretKey = ?, Active = ?, sandbox = ?, extracharge = ?, percentage = ? LIMIT 1");
                 $stmt2->execute([
                     $_POST['paypal_id'],
                     $_POST['paypal_secret'],
-                    $active
+                    $active,
+                    isset($_POST['paypal_sandbox']) ? 1 : 0,
+                    isset($_POST['paypal_extracharge']) ? 1 : 0,
+                    $_POST['paypal_percentage'] ?? 0
                 ]);
             //}
             http_response_code(200);

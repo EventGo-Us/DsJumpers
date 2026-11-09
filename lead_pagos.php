@@ -39,6 +39,7 @@
                                 <th><?= Trd(122) ?></th>
                                 <th><?= Trd(123) ?></th>
                                 <th><?= Trd(124) ?></th>
+                                <th><?= Trd(179) ?></th>
                                 <th><?= Trd(125) ?></th>
                                 <th><?= Trd(126) ?></th>
                                 <th><?= Trd(127) ?></th>
@@ -59,6 +60,7 @@
                                             <td style="text-align: center;"><?= $pay['DateTime'] ?></td>
                                             <td style="text-align: center;"><?= $pay['Platform'] ?></td>
                                             <td style="text-align: right;" >$<?= $pay['Amount'] ?></td>
+                                            <td style="text-align: right;" >$<?= $pay['ExtraCharge'] ?></td>
                                             <td style="text-align: center;"><?= $pay['Currency'] ?></td>
                                             <td style="text-align: center;"><?= $pay['TransactionId'] ?></td>
                                             <td style="text-align: center;"><?= $pay['Usuario'] ?></td>

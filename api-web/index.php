@@ -863,18 +863,19 @@ function processpayment_square_sale($table_name,$db, $method, $id, $data){
                 $tokenId    = $data->token_id ?? null;
                 $token      = $data->token ?? null;
                 $deviceId   = $data->deviceIdHiddenFieldName ?? null;
-                $baseAmount = (float) ($data->amount ?? 0);
-                if ($baseAmount <= 0) {
+                $totalAmount = (float) ($data->amount ?? 0);
+                if ($totalAmount <= 0) {
                     http_response_code(400);
                     echo json_encode(['success' => false, 'error' => 'El monto debe ser mayor a 0']);
                     exit;
                 }
-                $baseAmountCents = (int) round($baseAmount * 100);
+                $totalAmountCents = (int) round($totalAmount * 100);
                 $extraPctj = (float) $extra_pctj;
-                $extraAmountCents = $extraPctj > 0
-                    ? (int) round($baseAmountCents * $extraPctj)
-                    : 0;
-                $amount = $baseAmountCents + $extraAmountCents;
+                $baseAmountCents = $extraPctj > 0
+                    ? (int) round($totalAmountCents / (1 + $extraPctj))
+                    : $totalAmountCents;
+                $extraAmountCents = $totalAmountCents - $baseAmountCents;
+                $amount = $totalAmountCents;
                 $finalAmount = $amount / 100;
                 $ahora = date("Y-m-d H:i:s");            
 
@@ -1039,9 +1040,9 @@ function processpayment_sale($table_name,$db, $method, $id, $data){
             $baseAmountCents = (int) round($baseAmount * 100);
             $extraPctj = (float) $extra_pctj;
             $extraAmountCents = $extraPctj > 0
-                ? (int) round($baseAmountCents * $extraPctj)
+                ? (int) round($baseAmountCents / (1 + ($extraPctj )))
                 : 0;
-            $totalAmountCents = $baseAmountCents + $extraAmountCents;
+            $totalAmountCents = $baseAmountCents - $extraAmountCents;
             $amount = $totalAmountCents / 100;
             $baseAmount = $baseAmountCents / 100;
             $extraAmount = $extraAmountCents / 100;
@@ -1399,18 +1400,19 @@ function processpayment_square($table_name,$db, $method, $id, $data){
                 $tokenId    = $data->token_id ?? null;
                 $token      = $data->token ?? null;
                 $deviceId   = $data->deviceIdHiddenFieldName ?? null;
-                $baseAmount = (float) ($data->amount ?? 0);
-                if ($baseAmount <= 0) {
+                $totalAmount = (float) ($data->amount ?? 0);
+                if ($totalAmount <= 0) {
                     http_response_code(400);
                     echo json_encode(['success' => false, 'error' => 'El monto debe ser mayor a 0']);
                     exit;
                 }
-                $baseAmountCents = (int) round($baseAmount * 100);
+                $totalAmountCents = (int) round($totalAmount * 100);
                 $extraPctj = (float) $extra_pctj;
-                $extraAmountCents = $extraPctj > 0
-                    ? (int) round($baseAmountCents * $extraPctj)
-                    : 0;
-                $amount = $baseAmountCents + $extraAmountCents;
+                $baseAmountCents = $extraPctj > 0
+                    ? (int) round($totalAmountCents / (1 + $extraPctj))
+                    : $totalAmountCents;
+                $extraAmountCents = $totalAmountCents - $baseAmountCents;
+                $amount = $totalAmountCents;
                 $ahora = date("Y-m-d H:i:s");
                 $stmt = $db->prepare("SELECT * FROM quotes WHERE UUID = ? AND Status = 'A'");
                 $stmt->execute([$token]);
@@ -1700,9 +1702,9 @@ function processpayment($table_name,$db, $method, $id, $data){
             $baseAmountCents = (int) round($baseAmount * 100);
             $extraPctj = (float) $extra_pctj;
             $extraAmountCents = $extraPctj > 0
-                ? (int) round($baseAmountCents * $extraPctj)
+                ? (int) round($baseAmountCents / (1 + ($extraPctj )))
                 : 0;
-            $totalAmountCents = $baseAmountCents + $extraAmountCents;
+            $totalAmountCents = $baseAmountCents - $extraAmountCents;
             $amount = $totalAmountCents / 100;
             $baseAmount = $baseAmountCents / 100;
             $extraAmount = $extraAmountCents / 100;
@@ -2040,7 +2042,7 @@ function quote_data($table_name,$db, $method, $id, $data){
             $stmt->execute();
             $deposit = $stmt->fetchAll(PDO::FETCH_ASSOC);  
             
-            $lead['DepositAmount'] = $deposit[0]['Deposit'] ?? 0;
+            $lead['DepositAmount'] = $deposit[0]['Deposit'] ?? $lead['DepositAmount'];
 
             $query = "SELECT IF(Contrato IS NULL, 0, 1) AS Contrato FROM quotes WHERE IdQuote = ".$lead['Id'];
             $stmt = $db->prepare($query);   
@@ -2211,8 +2213,8 @@ function quotes($table_name,$db, $method, $id, $data){
             $quotes = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($quotes) {
                 // Convertimos el contenido a base64 antes de devolverlo
-                //$quotes['Contrato'] = base64_encode($quotes['Contrato']);
-                $quotes['Contrato'] = '';
+                $quotes['Contrato'] = base64_encode($quotes['Contrato']);
+                //$quotes['Contrato'] = '';
             }            
             http_response_code(200);
             echo json_encode($quotes);

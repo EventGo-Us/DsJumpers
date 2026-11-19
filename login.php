@@ -17,7 +17,7 @@ if (empty($usuario) || empty($password)) {
 $database = new DatabaseLogin();
 $db = $database->getConnection();
 
-    $stmt = $db->prepare("SELECT Id, nombre_db, estatus, fecha_termino FROM data_bases WHERE company = ?");
+    $stmt = $db->prepare("SELECT Id, nombre_db,google_api, estatus, fecha_termino FROM data_bases WHERE company = ?");
     $stmt->execute([$company]);
     $SDB = $stmt->fetch(PDO::FETCH_ASSOC); 
     if ($SDB){
@@ -32,8 +32,8 @@ $db = $database->getConnection();
         if ($SDB['estatus'] == 'Activo'){
             $_SESSION['nombre_db']    = $SDB['nombre_db'];
             $_SESSION['id_cliente']   = $SDB['Id'];
+            $_SESSION['google_api']   = $SDB['google_api'];
 
-            
             $loginUrl = URL_BASE."/api/user_login";            
 
             $data = [

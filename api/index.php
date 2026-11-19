@@ -14,7 +14,7 @@ $dotenv->load();
 
 $secret_key     = $_ENV['SECRET_KEY'];
 $url_base       = $_ENV['URL_BASE'];
-$google_api_key = $_ENV['GOOGLE_API_KEY'];
+
 
 $host       = $_ENV['host'];
 $db_name    = $_ENV['db_name'];
@@ -30,7 +30,7 @@ $CFpublicurl    = $_ENV['publicurl'];
 
 define('SECRET_KEY', $secret_key);
 define('URL_BASE', $url_base);
-define('GOOGLE_API_KEY', $google_api_key);
+
 
 define('HOST', $host);
 define('USERNAME', $username);

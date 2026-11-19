@@ -174,8 +174,8 @@
 
 
 
-<!-- Cargamos la API de Google Maps (Reemplaza YOUR_API_KEY por tu clave) -->
-<script src="https://maps.googleapis.com/maps/api/js?key=<?= GOOGLE_API_KEY ?>&libraries=places&callback=initMap" async defer></script>
+<!-- Cargamos la API de Google Maps (Reemplaza YOUR_API_KEY por tu clave)  -->
+<script src="https://maps.googleapis.com/maps/api/js?key=<?=  $_SESSION['google_api']  ?>&libraries=places&callback=initMap" async defer></script>
 
 
 
@@ -183,9 +183,13 @@
         const buscador2 = document.getElementById('EventStreet');
         const listaSugerencias2 = document.getElementById('lista-sugerencias_2');
         let timeout2 = null;
+        let omapController2 = null;
 
         buscador2.addEventListener('input', function() {
             clearTimeout(timeout2);
+            if (omapController2) {
+                omapController2.abort();
+            }
             const valor = this.value.trim();
 
             if (valor.length < 4) {
@@ -194,7 +198,8 @@
             }
 
             timeout2 = setTimeout(() => {
-                fetch(`ajax/omap.php?buscar=${encodeURIComponent(valor)}`)
+                omapController2 = new AbortController();
+                fetch(`ajax/omap.php?buscar=${encodeURIComponent(valor)}`, { signal: omapController2.signal })
                     .then(response => response.json())
                     .then(data => {
                         listaSugerencias2.innerHTML = '';
@@ -223,8 +228,10 @@
                                 cntry = addr.country ;
                                 if (cntry == 'United States')
                                     ctry = 'USA';
-                                if (cntry == 'Mexico' || cntry == 'México' )
+                                else if (cntry == 'Mexico' || cntry == 'México' )
                                     ctry = 'MX';
+                                else 
+                                    ctry = cntry;
                                 document.getElementById('EventStreet').value =  housenumber + ' ' +address ;
                                 document.getElementById('EventCountry').value = ctry;
 
@@ -241,31 +248,34 @@
                                 document.getElementById('EventLng').value = item.lon || '';
 
                                 const stateSelect = document.getElementById('EventState');
-                                const targetState = (addr.state || '').toUpperCase(); // Convertimos el estado buscado a MAYÚSCULAS
+                                const normalizeState = value => (value || '')
+                                    .normalize('NFD')
+                                    .replace(/[\u0300-\u036f]/g, '')
+                                    .toUpperCase()
+                                    .trim();
 
-                                if (targetState !== '') {
-                                    let encontrado = false;
+                                const rawStateName = normalizeState(addr.state);
+                                const stateId = String(addr.state_id || '');
 
-                                    // Recorremos todas las opciones del select
-                                    for (let i = 0; i < stateSelect.options.length; i++) {
-                                        const optionText = stateSelect.options[i].text.toUpperCase(); // Texto de la opción en MAYÚSCULAS
-                                        
-                                        if (optionText === targetState) {
-                                            stateSelect.selectedIndex = i; // Seleccionamos la opción por su índice
-                                            encontrado = true;
-                                            break;
-                                        }
+                                let encontrado = false;
+                                for (let i = 0; i < stateSelect.options.length; i++) {
+                                    const option = stateSelect.options[i];
+                                    const optionText = normalizeState(option.text);
+                                    const optionValue = normalizeState(option.value);
+                                    if ((stateId && option.value === stateId) ||
+                                        (rawStateName && optionText === rawStateName)) {
+                                        stateSelect.selectedIndex = i;
+                                        encontrado = true;
+                                        break;
                                     }
+                                }
 
-                                    // Si encontramos el estado, detonamos el evento change
-                                    if (encontrado) {
-                                        stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                    }
+                                if (encontrado) {
+                                    stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
                                 } else {
-                                    // Si addr.state viene vacío, reseteamos el select al valor por defecto
                                     stateSelect.value = '';
                                     stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                }                                
+                                }
 
                                 
                             });
@@ -275,8 +285,12 @@
                         
                         listaSugerencias2.style.display = 'block';
                     })
-                    .catch(err => console.error('Error:', err));
-            }, 500);
+                    .catch(err => {
+                        if (err.name !== 'AbortError') {
+                            console.error('Error:', err);
+                        }
+                    });
+            }, 700);
         });
 
         // Ocultar sugerencias al hacer clic fuera

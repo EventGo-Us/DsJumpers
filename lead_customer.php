@@ -169,9 +169,13 @@
         const buscador = document.getElementById('Street');
         const listaSugerencias = document.getElementById('lista-sugerencias');
         let timeout = null;
+        let omapController = null;
 
         buscador.addEventListener('input', function() {
             clearTimeout(timeout);
+            if (omapController) {
+                omapController.abort();
+            }
             const valor = this.value.trim();
 
             if (valor.length < 4) {
@@ -180,7 +184,8 @@
             }
 
             timeout = setTimeout(() => {
-                fetch(`ajax/omap.php?buscar=${encodeURIComponent(valor)}`)
+                omapController = new AbortController();
+                fetch(`ajax/omap.php?buscar=${encodeURIComponent(valor)}`, { signal: omapController.signal })
                     .then(response => response.json())
                     .then(data => {
                         listaSugerencias.innerHTML = '';
@@ -209,8 +214,10 @@
                                 cntry = addr.country ;
                                 if (cntry == 'United States')
                                     ctry = 'USA';
-                                if (cntry == 'Mexico' || cntry == 'México' )
+                                else if (cntry == 'Mexico' || cntry == 'México' )
                                     ctry = 'MX';
+                                else 
+                                    ctry = cntry;
                                 document.getElementById('Street').value =  housenumber + ' ' +address ;
                                 document.getElementById('Country').value = ctry;
 
@@ -224,31 +231,34 @@
                                 document.getElementById('Zip').value = addr.postcode || '';
 
                                 const stateSelect = document.getElementById('State');
-                                const targetState = (addr.state || '').toUpperCase(); // Convertimos el estado buscado a MAYÚSCULAS
+                                const normalizeState = value => (value || '')
+                                    .normalize('NFD')
+                                    .replace(/[\u0300-\u036f]/g, '')
+                                    .toUpperCase()
+                                    .trim();
+                                const rawStateName = normalizeState(addr.state);
+                                const stateId = String(addr.state_id || '');
 
-                                if (targetState !== '') {
-                                    let encontrado = false;
+                                let encontrado = false;
+                                for (let i = 0; i < stateSelect.options.length; i++) {
+                                    const option = stateSelect.options[i];
+                                    const optionText = normalizeState(option.text);
+                                    const optionValue = normalizeState(option.value);
 
-                                    // Recorremos todas las opciones del select
-                                    for (let i = 0; i < stateSelect.options.length; i++) {
-                                        const optionText = stateSelect.options[i].text.toUpperCase(); // Texto de la opción en MAYÚSCULAS
-                                        
-                                        if (optionText === targetState) {
-                                            stateSelect.selectedIndex = i; // Seleccionamos la opción por su índice
-                                            encontrado = true;
-                                            break;
-                                        }
+                                    if ((stateId && option.value === stateId) ||
+                                        (rawStateName && optionText === rawStateName)) {
+                                        stateSelect.selectedIndex = i;
+                                        encontrado = true;
+                                        break;
                                     }
+                                }
 
-                                    // Si encontramos el estado, detonamos el evento change
-                                    if (encontrado) {
-                                        stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                    }
+                                if (encontrado) {
+                                    stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
                                 } else {
-                                    // Si addr.state viene vacío, reseteamos el select al valor por defecto
                                     stateSelect.value = '';
                                     stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                                }                                
+                                }
 
                                 
                             });
@@ -258,8 +268,12 @@
                         
                         listaSugerencias.style.display = 'block';
                     })
-                    .catch(err => console.error('Error:', err));
-            }, 500);
+                    .catch(err => {
+                        if (err.name !== 'AbortError') {
+                            console.error('Error:', err);
+                        }
+                    });
+            }, 700);
         });
 
         // Ocultar sugerencias al hacer clic fuera

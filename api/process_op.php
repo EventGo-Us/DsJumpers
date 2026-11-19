@@ -31,7 +31,19 @@ function process_op($Lead,$db){
                 if ($resultado) {
                     if ($resultado['Lat'] == null OR $resultado['Lat'] == ''){
                         $miDireccion = $resultado['Direccion']." ".$resultado['Ciudad']." ".$resultado['CP']." ".$resultado['Estado']." ".$resultado['Pais'];
-                        $miDireccion = obtenerCoordenadas($miDireccion, GOOGLE_API_KEY);
+                        
+                        $sql = "
+                            SELECT                       
+                                google_api
+                            FROM
+                                account
+                            Limit 1                    
+                        ";
+                        $stmt = $db->prepare($sql);
+                        $stmt->execute();
+                        $resultado = $stmt->fetch(PDO::FETCH_ASSOC);   
+
+                        $miDireccion = obtenerCoordenadas($miDireccion, $resultado['google_api']);
                         if (isset($miDireccion['error'])) {
                             echo "Hubo un problema: " . $miDireccion['error'];
                         } else {

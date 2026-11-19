@@ -165,9 +165,9 @@ function generarThumbnailJPG(\GdImage $original, string $destino, int $ancho = 1
     return $ok;
 }
 
-function get_distance($ORG,$DST){
+function get_distance($ORG,$DST,$apiKey){
 
-    $apiKey = GOOGLE_API_KEY;
+    
     $cpOrigen = urlencode($ORG);
     $cpDestino = urlencode($DST);
 

@@ -1177,6 +1177,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                             account.Direccion, 
                             account.Ciudad, 
                             account.CP, 
+                            account.google_api,
                             estados_pais.Estado, 
                             pais.Pais
                         FROM
@@ -1197,7 +1198,7 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
 
                     //if ($resultado['Lat'] == null OR $resultado['Lat'] == ''){
                         $miDireccion = $resultado['Direccion']." ".$resultado['Ciudad']." ".$resultado['CP']." ".$resultado['Estado']." ".$resultado['Pais'];
-                        $miDireccion = obtenerCoordenadas($miDireccion, GOOGLE_API_KEY);
+                        $miDireccion = obtenerCoordenadas($miDireccion, $resultado['google_api']);
                         if (isset($miDireccion['error'])) {
                             echo "Hubo un problema: " . $miDireccion['error'];
                         } else {
@@ -2705,8 +2706,20 @@ function save_venue($table_name,$db, $method, $id, $data){
             if ($data->{'IdVenue'} > 0) {
 
                 if ($data ->{'EventLat'} == null OR $data->{'EventLat'} == ''){
+
+                    $sql = "
+                        SELECT                       
+                            google_api
+                        FROM
+                            account
+                        Limit 1                    
+                    ";
+                    $stmt = $db->prepare($sql);
+                    $stmt->execute();
+                    $resultado = $stmt->fetch(PDO::FETCH_ASSOC);                
+                
                     $miDireccion =$data->{'EventStreet'}." ".$data->{'EventCity'}." ".$data->{'EventZip'}." ".$data->{'EventState'}." ".$data->{'EventCountry'};
-                    $miDireccion = obtenerCoordenadas($miDireccion, GOOGLE_API_KEY);
+                    $miDireccion = obtenerCoordenadas($miDireccion, $resultado['google_api']);
                     if (isset($miDireccion['error'])) {
                         echo "Hubo un problema: " . $miDireccion['error'];
                     } else {
@@ -2933,9 +2946,19 @@ function distance_charge($table_name,$db, $method, $id, $data){
 
                     $total_millas = 0;
                     $costo_total = 0;
-                   
-                    //die("$ZIPO,$CONO $ZIPD,$COND");
-                    $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND");
+
+                    $sql = "
+                        SELECT                       
+                            google_api
+                        FROM
+                            account
+                        Limit 1                    
+                    ";
+                    $stmt = $db->prepare($sql);
+                    $stmt->execute();
+                    $resultado = $stmt->fetch(PDO::FETCH_ASSOC);   
+
+                    $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND", $resultado['google_api']);
                     if (str_starts_with($total_millas, 'Error')) {
                         echo "Se detectó un error.";
                     }

@@ -12,7 +12,7 @@ $dotenv->load();
 $secret_key     = $_ENV['SECRET_KEY'];
 $url_base       = $_ENV['URL_BASE'];
 $url_base_sale  = $_ENV['URL_BASE_SALE'];
-$google_api_key = $_ENV['GOOGLE_API_KEY'];
+
 $host       = $_ENV['host'];
 $db_name    = $_ENV['db_name'];
 $username   = $_ENV['username'];
@@ -22,7 +22,7 @@ $CFpublicurl    = $_ENV['publicurl'];
 define('SECRET_KEY', $secret_key);
 define('URL_BASE', $url_base);
 define('URL_BASE_SALE', $url_base_sale);
-define('GOOGLE_API_KEY', $google_api_key);
+
 define('HOST', $host);
 define('USERNAME', $username);
 define('DB_NAMEP', $db_name);
@@ -81,7 +81,7 @@ $lng = $_SERVER['HTTP_LNG'] ?? 'es';
 //$clienteId = $headers['X-ID-CLIENT'] ?? '';
 $database = new DatabaseLogin();
 $db = $database->getConnection();
-$sql = "SELECT nombre_db, token_key, fecha_termino FROM data_bases WHERE Id = :id AND estatus = 'Activo'";
+$sql = "SELECT nombre_db, google_api, token_key, fecha_termino FROM data_bases WHERE Id = :id AND estatus = 'Activo'";
 $stmt = $db->prepare($sql);
 $stmt->bindValue(":id", $clienteId); 
 $stmt->execute();
@@ -99,6 +99,7 @@ if ($account){
     $decoded = JWT::decode($token, new Key($key, 'HS256'));
     if ($decoded->cliente_id == $clienteId){
         define('DB_NAME', $account['nombre_db']);
+        define('GOOGLE_API_KEY', $account['google_api']);
     }
     else{
         http_response_code(401);
@@ -5589,7 +5590,7 @@ function distance($table_name,$db, $method, $id, $data){
                     $costo_total = 0;
                    
                     //die("$ZIPO,$CONO $ZIPD,$COND");
-                    $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND");
+                    $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND",GOOGLE_API_KEY);
                     if (str_starts_with($total_millas, 'Error')) {
                         echo "Se detectó un error.";
                     }
@@ -5811,7 +5812,7 @@ function distance_charge($table_name,$db, $method, $id, $data){
                     $costo_total = 0;
                    
                     //die("$ZIPO,$CONO $ZIPD,$COND");
-                    $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND");
+                    $total_millas = get_distance("$ZIPO,$CONO","$ZIPD,$COND",GOOGLE_API_KEY);
                     if (str_starts_with($total_millas, 'Error')) {
                         echo "Se detectó un error.";
                     }

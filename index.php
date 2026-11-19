@@ -9,7 +9,7 @@
     $database = new DatabaseLogin();
     $db = $database->getConnection();
 
-    $stmt = $db->prepare("SELECT Id, nombre_db, estatus, fecha_termino FROM data_bases WHERE company = ?");
+    $stmt = $db->prepare("SELECT Id, nombre_db, google_api, estatus, fecha_termino FROM data_bases WHERE company = ?");
     $stmt->execute([$company]);
     $SDB = $stmt->fetch(PDO::FETCH_ASSOC); 
     if ($SDB){
@@ -17,7 +17,8 @@
             $loginUrl = URL_BASE."/api/account_login";            
 
             $data = [
-                'data_base'         => $SDB['nombre_db']
+                'data_base'         => $SDB['nombre_db'],
+                'google_api'         => $SDB['google_api']
             ];
 
             $payload = json_encode($data);

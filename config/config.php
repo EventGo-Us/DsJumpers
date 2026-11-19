@@ -6,7 +6,7 @@ $dotenv->load();
 
 $secret_key = $_ENV['SECRET_KEY'];
 $url_base = $_ENV['URL_BASE'];
-$google_api_key = $_ENV['GOOGLE_API_KEY'];
+
 
 $host       = $_ENV['host'];
 $db_name    = $_ENV['db_name'];
@@ -39,7 +39,7 @@ define('URL_BASE', $url_base);
 // ... otras configuraciones de la aplicación
 date_default_timezone_set('America/Mexico_City');
 
-define('GOOGLE_API_KEY', $google_api_key);
+
 
 define('CFENDPOINT',$CFendpoint);
 define('CFKEY',$CFkey);

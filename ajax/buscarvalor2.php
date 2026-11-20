@@ -53,13 +53,14 @@
             ");
             $checkColumn->execute([':tabla' => $TablaDts]);
             $columnaExiste = $checkColumn->fetchColumn() > 0;
-
-            // 2. Construir el fragmento de la consulta de forma dinámica
             $condicionIdioma = "";
-            if ($columnaExiste) {
-                $condicionIdioma = "AND (Idioma = '$Idioma' OR Idioma = '')";
+            
+            if ($TablaDts != "templates") {
+                // 2. Construir el fragmento de la consulta de forma dinámica
+                if ($columnaExiste) {
+                    $condicionIdioma = "AND (Idioma = '$Idioma' OR Idioma = '')";
+                }
             }
-
             // 3. Tu consulta final modificada
             $sql2 = "SELECT $CampoValor AS Id, $CampoDescripcion AS Descripcion 
                     FROM $TablaDts 

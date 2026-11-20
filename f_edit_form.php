@@ -201,7 +201,8 @@ function armar_formulario_edit($tabla,$etiqueta,$idioma){
                             else{
                                 $query ="SELECT $CampoValor,$CampoDescripcion FROM $TablaDts WHERE 1 = 1  $Filtro ";
                             }                            
-                            
+                            if ($TablaDts == "templates")
+                                $query ="SELECT $CampoValor,$CampoDescripcion FROM $TablaDts WHERE 1 = 1  $Filtro ";
                             $stmt_dts = $db->prepare($query);
                             $stmt_dts->execute();
                             $tabla_dts = $stmt_dts->fetchAll(PDO::FETCH_ASSOC);

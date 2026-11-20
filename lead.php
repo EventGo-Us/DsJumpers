@@ -2987,11 +2987,12 @@ function LoadDocument(DocumentType){
         cardcharge: cardcharge,
         atopay: Math.round((pagoAnticipado + cardcharge + Number.EPSILON) * 100) / 100,
         ctr_balance_due: $('#Total').val() - PagoAnticipado,
-        balancedue: $('#Total').val() - PagoAnticipado,        
+        balancedue: $('#Total').val() ,        
         electric:"",
         signature:"",
         signeddate:""
     };
+    //balancedue: $('#Total').val() - PagoAnticipado,   
 /*
         <?php  if ($account['Deposit'] == 1){?>                
             ctr_balance_due: $('#Total').val() - PagoAnticipado,

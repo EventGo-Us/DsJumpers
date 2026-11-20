@@ -165,49 +165,102 @@ function generarThumbnailJPG(\GdImage $original, string $destino, int $ancho = 1
     return $ok;
 }
 
-function get_distance($ORG,$DST,$apiKey){
 
-    
-    $cpOrigen = urlencode($ORG);
-    $cpDestino = urlencode($DST);
+function get_distance($ORG, $DST, $apiKey)
+{
+    $url = 'https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix';
 
-    // Construir URL
-    $url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins={$cpOrigen}&destinations={$cpDestino}&units=imperial&key={$apiKey}";
+    $payload = [
+        'origins' => [
+            [
+                'waypoint' => [
+                    'address' => (string) $ORG,
+                ],
+            ],
+        ],
+        'destinations' => [
+            [
+                'waypoint' => [
+                    'address' => (string) $DST,
+                ],
+            ],
+        ],
+        'travelMode' => 'DRIVE',
+        'units' => 'IMPERIAL',
+    ];
 
-    //echo "--- Iniciando prueba de conexión ---\n";
+    $headers = [
+        'Content-Type: application/json',
+        'X-Goog-Api-Key: ' . $apiKey,
+        'X-Goog-FieldMask: originIndex,destinationIndex,distanceMeters,duration,localizedValues,status,condition',
+    ];
 
-    // Realizar la petición
-    $response = file_get_contents($url);
-    $data = json_decode($response, true);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RETURNTRANSFER => true,
+    ]);
 
-    // 1. Verificar errores de conexión o API Key
-    if ($data['status'] !== 'OK') {
-        //echo "❌ ERROR DE CONFIGURACIÓN:\n";
-        //echo "Estado: " . $data['status'] . "\n";
-        //if (isset($data['error_message'])) {
-        //    echo "Mensaje: " . $data['error_message'] . "\n";
-        //}
-        //echo "Revisa: Que la API Key sea correcta y la 'Distance Matrix API' esté habilitada.\n";
+    $response = curl_exec($ch);
+
+    if ($response === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        echo "Estado: CURL_ERROR\n";
+        echo "Mensaje: " . $error . "\n";
         return 'Error al llamar la API';
     }
 
-    // 2. Verificar si encontró la ruta
-    $elemento = $data['rows'][0]['elements'][0];
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
-    if ($elemento['status'] === 'OK') {
-        //echo "✅ ¡CONEXIÓN EXITOSA!\n";
-        //echo "------------------------------\n";
-        //echo "Origen: " . $data['origin_addresses'][0] . "\n";
-        //echo "Destino: " . $data['destination_addresses'][0] . "\n";
-        //echo "Distancia en carretera: " . $elemento['distance']['text'] . "\n";
-        //echo "Tiempo estimado: " . $elemento['duration']['text'] . "\n";
-        //echo "------------------------------\n";
-        return $elemento['distance']['text'];
-    } else {
-        //echo "❌ ERROR DE RUTA: " . $elemento['status'] . "\n";
+    $data = json_decode($response, true);
+
+    // 1. Verificar errores HTTP o de API Key / configuración
+    if ($httpCode >= 400 || !is_array($data)) {
+        $status = $data['error']['status'] ?? ('HTTP_' . $httpCode);
+        $message = $data['error']['message'] ?? $response;
+        echo "Estado: " . $status . "\n";
+        echo "Mensaje: " . $message . "\n";
+        return 'Error al llamar la API';
+    }
+
+    // computeRouteMatrix devuelve un arreglo de elementos
+    $elemento = $data[0] ?? null;
+
+    if (!$elemento) {
+        echo "Estado: EMPTY_RESPONSE\n";
+        echo "Mensaje: No se recibieron elementos en la respuesta.\n";
+        return 'Error al llamar la API';
+    }
+
+    // Verificar si el elemento tuvo error propio
+    if (isset($elemento['status']) && !empty($elemento['status']) && ($elemento['status']['code'] ?? 0) !== 0) {
+        echo "Estado: " . ($elemento['status']['message'] ?? 'ELEMENT_ERROR') . "\n";
         return "Error los códigos postales no existen o no hay ruta terrestre entre ellos.";
     }
 
+    // 2. Verificar si encontró la ruta
+    $condition = $elemento['condition'] ?? '';
+
+    if ($condition === 'ROUTE_EXISTS') {
+        $distanceText = $elemento['localizedValues']['distance']['text'] ?? null;
+
+        // Respaldo en millas si localizedValues no viniera en algún caso
+        if (!$distanceText && isset($elemento['distanceMeters'])) {
+            $miles = $elemento['distanceMeters'] / 1609.344;
+            $distanceText = number_format($miles, 1) . ' mi';
+        }
+
+        // Si también necesitas la duración formateada:
+        // $durationText = $elemento['localizedValues']['duration']['text'] ?? '';
+
+        return $distanceText ?? 'Error al llamar la API';
+    } else {
+        return "Error los códigos postales no existen o no hay ruta terrestre entre ellos.";
+    }
 }
 
 

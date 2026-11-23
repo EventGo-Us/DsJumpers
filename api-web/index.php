@@ -4417,58 +4417,33 @@ function products_categories($table_name,$db, $method, $id, $data){
             $fechaS_db = $objDateS->format('Y-m-d H:i:s');
             $fechaE_db = $objDateE->format('Y-m-d H:i:s');
             $query = "
-                SELECT IdProduct, SUM(Quantity) as Quantity 
-                FROM v_leads_detail 
-                WHERE Status = 'quoted'
-                AND (StartDateTime < :DateE AND EndDateTime > :DateS)
-                AND Unlimited = 0
-                GROUP BY IdProduct
-                UNION
-                SELECT
-                    relationship_products.Producto_rsp as IdProduct, 
-                    count(relationship_products.Producto_rsp) as Quantity
-                FROM
-                    v_leads_detail
-                    INNER JOIN
-                    relationship_products
-                    ON 
-                        v_leads_detail.IdProduct = relationship_products.Producto_sp
-                WHERE v_leads_detail.Status = 'quoted'
-                AND (v_leads_detail.StartDateTime < :DateEE AND v_leads_detail.EndDateTime > :DateSS)
-                AND v_leads_detail.Unlimited = 0
-                GROUP BY relationship_products.Producto_rsp		                
-            ";
-
-            $query = "
-                SELECT 
-                    IdProduct, 
-                    SUM(Quantity) AS Quantity 
-                FROM v_leads_detail 
-                WHERE 
-                    Status IN ('quoted', 'confirmed')
-                    AND Unlimited = 0
-                    AND StartDateTime < :DateE
-                    AND EndDateTime > :DateS
-                GROUP BY IdProduct
+SELECT 
+    l.IdProduct, 
+    SUM(l.Quantity) AS Quantity 
+FROM v_leads_detail l
+INNER JOIN products p ON l.IdProduct = p.Id
+WHERE 
+    l.Status IN ('quoted', 'confirmed')
+    AND l.Unlimited = 0
+    AND l.StartDateTime < :DateE
+    AND DATE_ADD(l.EndDateTime, INTERVAL CASE WHEN p.Recoverytime > 0 THEN p.Recoverytime ELSE 0 END HOUR) > :DateS
+GROUP BY l.IdProduct
 
                 UNION 
-
-                SELECT
-                        relationship_products.Producto_sp as IdProduct, 
-                        count(relationship_products.Producto_rsp) as Quantity
-                FROM
-                        v_leads_detail
-                        INNER JOIN
-                        relationship_products
-                        ON 
-                                v_leads_detail.IdProduct = relationship_products.Producto_rsp
-                WHERE 
-                        v_leads_detail.Status IN ('quoted', 'confirmed')
-                        AND v_leads_detail.Unlimited = 0
-                        AND v_leads_detail.StartDateTime < :DateEE 
-                        AND v_leads_detail.EndDateTime > :DateSS 
-
-                GROUP BY relationship_products.Producto_sp	                
+SELECT
+    rp.Producto_sp as IdProduct, 
+    COUNT(rp.Producto_rsp) as Quantity
+FROM v_leads_detail l
+INNER JOIN relationship_products rp 
+    ON l.IdProduct = rp.Producto_rsp
+INNER JOIN products p 
+    ON rp.Producto_sp = p.Id
+WHERE 
+    l.Status IN ('quoted', 'confirmed')
+    AND l.Unlimited = 0
+    AND l.StartDateTime < :DateEE 
+    AND DATE_ADD(l.EndDateTime, INTERVAL CASE WHEN p.Recoverytime > 0 THEN p.Recoverytime ELSE 0 END HOUR) > :DateSS
+GROUP BY rp.Producto_sp              
             ";            
 
             $stmt = $db->prepare($query);
@@ -5210,58 +5185,33 @@ function precios($data,$product){
     $fechaS_db = $objDateS->format('Y-m-d H:i:s');
     $fechaE_db = $objDateE->format('Y-m-d H:i:s');
     $query = "
-        SELECT IdProduct, SUM(Quantity) as Quantity 
-        FROM v_leads_detail 
-        WHERE Status = 'quoted'
-        AND (StartDateTime < :DateE AND EndDateTime > :DateS)
-        AND Unlimited = 0
-        GROUP BY IdProduct
-        UNION
-        SELECT
-            relationship_products.Producto_rsp as IdProduct, 
-            count(relationship_products.Producto_rsp) as Quantity
-        FROM
-            v_leads_detail
-            INNER JOIN
-            relationship_products
-            ON 
-                v_leads_detail.IdProduct = relationship_products.Producto_sp
-        WHERE v_leads_detail.Status = 'quoted'
-        AND (v_leads_detail.StartDateTime < :DateEE AND v_leads_detail.EndDateTime > :DateSS)
-        AND v_leads_detail.Unlimited = 0
-        GROUP BY relationship_products.Producto_rsp		                
-    ";
+SELECT 
+    l.IdProduct, 
+    SUM(l.Quantity) AS Quantity 
+FROM v_leads_detail l
+INNER JOIN products p ON l.IdProduct = p.Id
+WHERE 
+    l.Status IN ('quoted', 'confirmed')
+    AND l.Unlimited = 0
+    AND l.StartDateTime < :DateE
+    AND DATE_ADD(l.EndDateTime, INTERVAL CASE WHEN p.Recoverytime > 0 THEN p.Recoverytime ELSE 0 END HOUR) > :DateS
+GROUP BY l.IdProduct
 
-    $query = "
-        SELECT 
-            IdProduct, 
-            SUM(Quantity) AS Quantity 
-        FROM v_leads_detail 
-        WHERE 
-            Status IN ('quoted', 'confirmed')
-            AND Unlimited = 0
-            AND StartDateTime < :DateE
-            AND EndDateTime > :DateS
-        GROUP BY IdProduct
-
-        UNION 
-
-        SELECT
-                relationship_products.Producto_sp as IdProduct, 
-                count(relationship_products.Producto_rsp) as Quantity
-        FROM
-                v_leads_detail
-                INNER JOIN
-                relationship_products
-                ON 
-                        v_leads_detail.IdProduct = relationship_products.Producto_rsp
-        WHERE 
-                v_leads_detail.Status IN ('quoted', 'confirmed')
-                AND v_leads_detail.Unlimited = 0
-                AND v_leads_detail.StartDateTime < :DateEE 
-                AND v_leads_detail.EndDateTime > :DateSS 
-
-        GROUP BY relationship_products.Producto_sp	                
+                UNION 
+SELECT
+    rp.Producto_sp as IdProduct, 
+    COUNT(rp.Producto_rsp) as Quantity
+FROM v_leads_detail l
+INNER JOIN relationship_products rp 
+    ON l.IdProduct = rp.Producto_rsp
+INNER JOIN products p 
+    ON rp.Producto_sp = p.Id
+WHERE 
+    l.Status IN ('quoted', 'confirmed')
+    AND l.Unlimited = 0
+    AND l.StartDateTime < :DateEE 
+    AND DATE_ADD(l.EndDateTime, INTERVAL CASE WHEN p.Recoverytime > 0 THEN p.Recoverytime ELSE 0 END HOUR) > :DateSS
+GROUP BY rp.Producto_sp          
     ";     
 
     $stmt = $db->prepare($query);

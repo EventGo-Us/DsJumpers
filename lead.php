@@ -707,6 +707,9 @@ function inicializarSelectDescuento(selector) {
 
 
     function triggerAutoSave() {
+        if (customerDataLoadCount > 0) {
+            return;
+        }
         if ($('#IdOrganization').val() > 0 || $('#IdCustomer').val() > 0){
             // Obtenemos el formulario y lo convertimos a un objeto plano
             const formArray = $('#customers').serializeArray();
@@ -715,15 +718,30 @@ function inicializarSelectDescuento(selector) {
             $.map(formArray, function(n, i){
                 formData[n['name']] = n['value'];
             });
+
+            // Los IDs ocultos deben viajar siempre, aunque el Select2 no los
+            // incluya en serializeArray.
+            formData['IdOrganization'] = $('#IdOrganization').val() || '';
+            formData['IdCustomer'] = $('#IdCustomer').val() || '';
+
+            // Cell es un Select2: su valor interno puede ser el ID usado para
+            // buscar el cliente. Enviamos el texto visible (el telefono real).
+            if ($('#Cell').is('select')) {
+                formData['Cell'] = ($('#Cell').find(':selected').text() || '').trim();
+            } else {
+                formData['Cell'] = $('#Cell').val() || '';
+            }
+
+            formData['CustomerEmail'] = $('#CustomerEmail').val() || '';
             URL_DESTINO = '';
             // Añadimos metadatos si es necesario
             if ($('#IdOrganization').val() > 0 ){
                 formData['action'] = 'autosave_organization';
-                URL_DESTINO = 'save_organization/"';
+                URL_DESTINO = 'save_organization/';
             }
             else{
                 formData['action'] = 'autosave_customer';
-                URL_DESTINO = 'save_customer/"';
+                URL_DESTINO = 'save_customer/';
             }
             $.ajax({
                 url: API_BASE_URL + URL_DESTINO,
@@ -751,11 +769,17 @@ function inicializarSelectDescuento(selector) {
 
 
     $('#customers select, #customers input[type="checkbox"]').on('change', function() {
+        if (customerDataLoadCount > 0) {
+            return;
+        }
         triggerAutoSave();
     });
 
     // 2. Para inputs de texto y textareas (con delay de 1.5 segundos para no agobiar)
-    $('#customers input[type="text"], #customers input[type="email"], #CustomerNote').on('keyup', function() {
+    $('#customers input[type="text"], #customers input[type="email"], #CustomerNote').on('keyup change', function() {
+        if (customerDataLoadCount > 0) {
+            return;
+        }
         clearTimeout(autoSaveTimer);
         autoSaveTimer = setTimeout(triggerAutoSave, 1500);
     });
@@ -870,11 +894,12 @@ function inicializarSelectDescuento(selector) {
                 // Debes retornar un objeto con la propiedad 'results'.
                 return {
                     results: data.items.map(function(item) {
+                        const nombreVisible = (item.Nombre || '').replace(/\s+/g, ' ').trim();
                         return {
                             id: item.Id,
                             text: item.TelefonoCelular, // Primera fila (Nombre)
                             direccion: item.Direccion, // Segunda fila (Dirección)
-                            nombre: item.Nombre // Segunda fila (Dirección)
+                            nombre: nombreVisible
                         };
                     })
                 };
@@ -920,10 +945,21 @@ function inicializarSelectDescuento(selector) {
         } else {
             let Idsrch = data.id
             Idsrch = Idsrch.split('-')
-            if (Idsrch[1] == "C")
+            if (Idsrch[1] == "C") {
+                if ($('#Customer option[value="' + Idsrch[0] + '"]').length === 0) {
+                    $('#Customer').append(new Option(data.nombre || '', Idsrch[0], true, true));
+                } else {
+                    $('#Customer').val(Idsrch[0]).trigger('change');
+                }
                 load_customer(Idsrch[0]);
-            else
+            } else {
+                if ($('#Organization option[value="' + Idsrch[0] + '"]').length === 0) {
+                    $('#Organization').append(new Option(data.nombre || '', Idsrch[0], true, true));
+                } else {
+                    $('#Organization').val(Idsrch[0]).trigger('change');
+                }
                 load_organization(Idsrch[0]);
+            }
         }
     });    
 
@@ -1147,7 +1183,7 @@ window.triggerAutoSaveVenue = function(){
 
 
                     echo "
-                    load_organization(".$lead['Organization'].");
+                    load_organization(".$lead['Organization'].", true);
                         var dataorganization = {
                             id: ".$lead['Organization'].",
                             text: '".$organization['Nombre']."',
@@ -1172,7 +1208,7 @@ window.triggerAutoSaveVenue = function(){
 
 
                     echo "
-                    load_customer(".$lead['Customer'].");
+                    load_customer(".$lead['Customer'].", true);
                         var datacustomer = {
                             id: ".$lead['Customer'].",
                             text: '".$customers['Nombres']." ".$customers['Apellidos']."',
@@ -2452,7 +2488,11 @@ function recalculate_totals(){
 }
 
 //CARGA DATOS DE ORGANIZACION
-function load_organization(Id){
+let customerDataLoadCount = 0;
+
+function load_organization(Id, isInitialLoad = false){
+        customerDataLoadCount++;
+        clearTimeout(autoSaveTimer);
         var misHeaders = {
             'Authorization': 'Bearer ' + TOKEN
         };
@@ -2462,6 +2502,9 @@ function load_organization(Id){
         dataType: 'json', // Indica que esperamos JSON
         headers: misHeaders,
         success: function(data) {
+
+            $('#IdOrganization').val(Id);
+            $('#IdCustomer').val('');
 
             // 1. Validamos si la opción ya existe. Si no existe, la creamos y la agregamos.
             if ($('#Organization option[value="' + Id + '"]').length === 0) {
@@ -2478,13 +2521,23 @@ function load_organization(Id){
             $('#Country').trigger('change');
             $('#State').val( data.Estado);
             $('#Street').val( data.Direccion+' '+data.Direccion2);
-            $('#Cell').val( data.TelefonoCelular);
+            if ($('#Cell').is('select')) {
+                if ($('#Cell option[value="' + data.TelefonoCelular + '"]').length === 0) {
+                    $('#Cell').append(new Option(data.TelefonoCelular, data.TelefonoCelular, true, true)).trigger('change');
+                } else {
+                    $('#Cell').val(data.TelefonoCelular).trigger('change');
+                }
+            } else {
+                $('#Cell').val(data.TelefonoCelular);
+            }
             $('#City').val( data.Ciudad);
             $('#Zip').val( data.CP);
             $('#CustomerEmail').val( data.Correo);
+            customerDataLoadCount = Math.max(0, customerDataLoadCount - 1);
             aplicar_autosave();
         },
         error: function(xhr, status, error) {
+            customerDataLoadCount = Math.max(0, customerDataLoadCount - 1);
             if (xhr.status === 401) {
                 //console.error('Acceso denegado. Token expirado o inválido.');
                 // Aquí puedes redirigir al login o limpiar el token
@@ -2496,7 +2549,9 @@ function load_organization(Id){
 }
 
 //CARGA DATOS DE CLIENTE
-function load_customer(Id){
+function load_customer(Id, isInitialLoad = false){
+        customerDataLoadCount++;
+        clearTimeout(autoSaveTimer);
         var misHeaders = {
             'Authorization': 'Bearer ' + TOKEN
         };
@@ -2507,6 +2562,9 @@ function load_customer(Id){
         dataType: 'json', // Indica que esperamos JSON
         headers: misHeaders,
         success: function(data) {
+
+            $('#IdCustomer').val(Id);
+            $('#IdOrganization').val('');
 
             // 1. Validamos si la opción ya existe. Si no existe, la creamos y la agregamos.
             if ($('#Customer option[value="' + Id + '"]').length === 0) {
@@ -2523,13 +2581,23 @@ function load_customer(Id){
             $('#Country').trigger('change');
             $('#State').val( data.Estado);        
             $('#Street').val( data.Direccion+' '+data.Direccion2);
-            $('#Cell').val( data.TelefonoCelular);
+            if ($('#Cell').is('select')) {
+                if ($('#Cell option[value="' + data.TelefonoCelular + '"]').length === 0) {
+                    $('#Cell').append(new Option(data.TelefonoCelular, data.TelefonoCelular, true, true)).trigger('change');
+                } else {
+                    $('#Cell').val(data.TelefonoCelular).trigger('change');
+                }
+            } else {
+                $('#Cell').val(data.TelefonoCelular);
+            }
             $('#City').val( data.Ciudad);
             $('#Zip').val( data.CP);
             $('#CustomerEmail').val( data.Correo); 
+            customerDataLoadCount = Math.max(0, customerDataLoadCount - 1);
             aplicar_autosave();           
         },
         error: function(xhr, status, error) {
+            customerDataLoadCount = Math.max(0, customerDataLoadCount - 1);
             if (xhr.status === 401) {
                 //console.error('Acceso denegado. Token expirado o inválido.');
                 // Aquí puedes redirigir al login o limpiar el token

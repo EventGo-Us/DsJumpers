@@ -2497,7 +2497,51 @@ function products($table_name,$db, $method, $id, $data){
                         $UpSelling[$index]['Quantity'] = $resultados_p[0]['Quantity'];
                     }
                 }   
-            }   
+            } 
+            if (!$UpSelling) {
+                $sql = "
+                    SELECT DISTINCT
+                        pc.Product AS Producto_rup,
+                        p.Name,
+                        pi.Image,
+                        CASE
+                            WHEN EXISTS (
+                                SELECT 1
+                                FROM products_categories current_pc
+                                WHERE current_pc.Product = :current_product_sub
+                                  AND current_pc.Category = pc.Category
+                            ) THEN 0
+                            ELSE 1
+                        END AS CategoryPriority
+                    FROM products_categories pc
+                    INNER JOIN products p ON p.Id = pc.Product
+                    LEFT JOIN products_images pi ON pi.Product = pc.Product AND pi.Orden = 1
+                    WHERE pc.Product <> :current_product
+                      AND p.Active = 1
+                    ORDER BY CategoryPriority ASC, RAND()
+                    LIMIT 5
+                ";
+                $stmt = $db->prepare($sql);
+                $stmt->bindValue(":current_product", $product['Id']);
+                $stmt->bindValue(":current_product_sub", $product['Id']);
+                $stmt->execute();
+                $UpSelling = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($UpSelling as $index => $upselling) {
+                    $UpSelling[$index]['Producto_up'] = $product['Id'];
+                    $UpSelling[$index]['Orden'] = 1;
+                    $UpSelling[$index]['Price'] = '0';
+                    $UpSelling[$index]['Quantity'] = '0';
+
+                    $resultados_p = precios($data, $UpSelling[$index]['Producto_rup']);
+                    if ($resultados_p) {
+                        $UpSelling[$index]['Price'] = $resultados_p[0]['Price'];
+                        $UpSelling[$index]['Name'] = $resultados_p[0]['ProductName'];
+                        $UpSelling[$index]['Quantity'] = $resultados_p[0]['Quantity'];
+                    }
+                }
+            }
+            
             //$DateS_raw = isset($_GET['DateS']) ? $_GET['DateS'] : date('Y-m-d\TH:i');
             //$DateE_raw = isset($_GET['DateE']) ? $_GET['DateE'] : date('Y-m-d\TH:i');
             $resultados_p = precios($data,$product['Id']);

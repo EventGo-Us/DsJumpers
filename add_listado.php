@@ -1,5 +1,6 @@
 <?php
 function add_listado($IdTabla,$collapse = ''){
+    global $db, $isEn;
 
 ?>
     <div class="<?= $collapse ?> container-fluid p-4 bg-white border-0 shadow-sm rounded-4" id="listado_<?php echo $IdTabla;?>" style="max-width: 100%;">
@@ -26,6 +27,25 @@ function add_listado($IdTabla,$collapse = ''){
             </div>
             
         </div>
+<?php if ($IdTabla == 'products') {
+    $categoryQuery = $db->prepare("SELECT Id, Nombre FROM categories ORDER BY Nombre");
+    $categoryQuery->execute();
+    $categories = $categoryQuery->fetchAll(PDO::FETCH_ASSOC);
+?>
+        <div class="row mb-3">
+            <div class="col-12 col-md-4 col-lg-3">
+                <label for="CategoryFilter_products" class="form-label small fw-semibold">
+                    <?php echo $isEn ? 'Category' : 'Categoría'; ?>
+                </label>
+                <select id="CategoryFilter_products" class="form-select form-select-sm" onchange="listado('products')">
+                    <option value=""><?php echo $isEn ? 'All categories' : 'Todas las categorías'; ?></option>
+                    <?php foreach ($categories as $category) { ?>
+                        <option value="<?php echo (int)$category['Id']; ?>"><?php echo htmlspecialchars($category['Nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
+                    <?php } ?>
+                </select>
+            </div>
+        </div>
+<?php } ?>
 <?php if ($IdTabla == 'inventory_stock'){?>
         <div class="row">
             <div class="col-4">
@@ -69,6 +89,7 @@ function add_listado($IdTabla,$collapse = ''){
             <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div id="pagination-container_<?php echo $IdTabla;?>" class="pagination-container d-flex align-items-center rounded-3">
                     </div>
+                <span id="total-records_<?php echo $IdTabla;?>" class="small text-muted fw-semibold text-end"></span>
             </div>
         </div>
         

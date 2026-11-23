@@ -240,6 +240,9 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
                 $like = isset($_GET['like']) ? $_GET['like'] : '';
                 $lang = isset($_GET['lang']) ? $_GET['lang'] : 'es';
+                $categoryId = ($table_name == 'products' && isset($_GET['category_id']))
+                    ? max(0, (int)$_GET['category_id'])
+                    : 0;
                 // Asegurar que limit y page sean positivos
                 $limit = max(1, $limit); 
                 $page = max(1, $page);                
@@ -358,6 +361,15 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
                 
                 if ($Where != "" AND $FWhere != "" )
                     $Where=" WHERE ".$FWhere;
+                if ($categoryId > 0) {
+                    $categoryCondition = "EXISTS (
+                        SELECT 1
+                        FROM products_categories pc_category
+                        WHERE pc_category.Product = v_products.Id
+                          AND pc_category.Category = $categoryId
+                    )";
+                    $Where .= ($Where === '' ? ' WHERE ' : ' AND ') . $categoryCondition;
+                }
                 if ($table_name == 'related_products')
                     $Where.=" GROUP BY producto_r ";
                 //$count_query = "SELECT COUNT(*) as total FROM $v_table_name $Where";
@@ -519,6 +531,15 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
 
                 if ($Where != "" AND $FFWhere != "" )
                     $Where=" WHERE ".$FFWhere;
+                if ($categoryId > 0) {
+                    $categoryCondition = "EXISTS (
+                        SELECT 1
+                        FROM products_categories pc_category
+                        WHERE pc_category.Product = v_products.Id
+                          AND pc_category.Category = $categoryId
+                    )";
+                    $Where .= ($Where === '' ? ' WHERE ' : ' AND ') . $categoryCondition;
+                }
 
 
                 
@@ -605,6 +626,8 @@ function handle_generic_crud($table_name,$db, $method, $id, $data) {
 
                 if ($table_name == 'related_products')
                     $Where.=" GROUP BY producto_r ";
+                 if ($table_name == 'products')
+                    $Where.=" GROUP BY Name ";               
                 // 3. Consulta para obtener los DATOS PAGINADOS
                 $data_query = "SELECT $Campos FROM $v_table_name $Where ORDER BY $Order  LIMIT :limit OFFSET :offset";                
                 //echo $data_query;

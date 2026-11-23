@@ -1859,6 +1859,9 @@ function listado(IdTabla, loadMore = false) {
     }    
 
 var camposFiltrados = Object.keys(estado.columnFilters).join(',');
+var categoryParam = IdTabla === 'products'
+    ? '&category_id=' + encodeURIComponent($('#CategoryFilter_products').val() || '')
+    : '';
 <?php if ($IdTabla == 'inventory_stock'){?>
  if ($('#SalesI').is(':checked')) {
     IdSelected = 'SalesI';
@@ -1884,7 +1887,8 @@ var queryUrl = API_BASE_URL + IdTabla + '/' +
     '&lang=<?php echo $Idioma?>' +
     '&sort_field=' + estado.sortField + 
     '&sort_order=' + estado.sortOrder + 
-    '&sort_fields=' + encodeURIComponent(camposFiltrados);
+    '&sort_fields=' + encodeURIComponent(camposFiltrados) +
+    categoryParam;
 <?php } ?>
     $.ajax({
         url: queryUrl,
@@ -1892,6 +1896,8 @@ var queryUrl = API_BASE_URL + IdTabla + '/' +
         dataType: 'json',
         headers: misHeaders,
         success: function(response) {
+            const totalRecords = Number(response.metadata && response.metadata.total_registros || 0);
+            $('#total-records_' + IdTabla).text(totalRecords.toLocaleString() + ' <?php echo Trd(21)?>');
             renderTable(response.data, response.titulos, IdTabla, response.tipos, loadMore);
             
             if (response.data.length < estado.limit) {

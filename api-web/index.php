@@ -175,7 +175,18 @@ switch ($resource) {
 	    $Traducciones = Traducciones('products',$lng,$db);            
         products($resource,$db, $method, $id, $data);
     break;
-
+    case 'searchproducts':
+	    $Traducciones = Traducciones('products',$lng,$db);            
+        searchproducts($resource,$db, $method, $id, $data);
+    break;
+    case 'searchcategories':
+	    $Traducciones = Traducciones('searchcategories',$lng,$db);            
+        searchcategories($resource,$db, $method, $id, $data);
+    break;
+    case 'searchproductcategories':
+	    $Traducciones = Traducciones('searchproductcategories',$lng,$db);            
+        searchproductcategories($resource,$db, $method, $id, $data);
+    break;
     case 'products_sale':
 	    $Traducciones = Traducciones('products_sale',$lng,$db);            
         products_sale($resource,$db, $method, $id, $data);
@@ -2385,6 +2396,76 @@ function sendmail($table_name,$db, $method, $id, $data){
         break;
     }      
 }
+
+
+function searchcategories($table_name,$db, $method, $id, $data){
+    global $IDS;
+    switch ($method) {
+        case 'POST': 
+            $sql = "SELECT Id, Nombre FROM categories WHERE IntExt = 1";
+            $stmt = $db->prepare($sql);
+            
+            $stmt->execute();
+            $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            http_response_code(200);
+            echo json_encode($productos);
+        break;
+        default:
+        // ------------------------------------------------------------------
+            http_response_code(405);
+            echo json_encode(array("message" => Trd(1)));
+        break;
+    }
+}
+
+function searchproductcategories($table_name,$db, $method, $id, $data){
+    global $IDS;
+    switch ($method) {
+        case 'POST': 
+            $extrafield ="";
+            if ($data->IdCat > 0){
+                $extrafield = " AND products_categories.Category = :idcat";
+            }
+            $extrafield = " AND products.`Name` LIKE :nombre";
+            $sql = "SELECT
+                        products.Id, 
+                        products.`Name`, 
+                        products_categories.Category, 
+                        categories.IntExt
+                    FROM
+                        products
+                        INNER JOIN
+                        products_categories
+                        ON 
+                            products.Id = products_categories.Product
+                        INNER JOIN
+                        categories
+                        ON 
+                            products_categories.Category = categories.Id
+                    WHERE 
+                    categories.IntExt = 1
+                    $extrafield GROUP BY products.Id";
+            $stmt = $db->prepare($sql);
+            if ($data->IdCat > 0){
+                $stmt->bindValue(":idcat", $data->IdCat); 
+            }
+            $stmt->bindValue(":nombre", "%".$data->Nombre."%");
+
+            $stmt->execute();
+            $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            http_response_code(200);
+            echo json_encode($productos);
+        break;
+        default:
+        // ------------------------------------------------------------------
+            http_response_code(405);
+            echo json_encode(array("message" => Trd(1)));
+        break;
+    }
+}
+
+
+
 function products($table_name,$db, $method, $id, $data){
     global $IDS;
     switch ($method) {

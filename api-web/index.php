@@ -4835,11 +4835,11 @@ try {
                 }
                 if (!empty($item->adicionales)) {
                     foreach ($item->adicionales as $extra) {
-                        $TotalI+= $extra->precio * $item->cantidad ;
+                        $TotalI+= $extra->precio * $extra->cantidad ;
                         $stmt->execute(['id' => $extra->id]);
                         $product = $stmt->fetch(PDO::FETCH_ASSOC);
                         if ($product && $product['TipApply'] == 1) {
-                            $TotalTip+= $extra->precio * $item->cantidad ;
+                            $TotalTip+= $extra->precio * $extra->cantidad ;
                         }
                     }
                 }
@@ -4987,10 +4987,10 @@ try {
                             $idLead,
                             $extra->id,
                             $item->id,
-                            $item->cantidad,
+                            $extra->cantidad,
                             '0',
                             '0',
-                            $extra->precio * $item->cantidad,
+                            $extra->precio * $extra->cantidad,
                             $extra->precio
                         ]);
                     }
